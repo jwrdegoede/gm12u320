@@ -29,38 +29,6 @@ struct gm12u320_fbdev {
 	struct list_head fbdev_list;
 };
 
-static int gm12u320_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
-{
-	unsigned long start = vma->vm_start;
-	unsigned long size = vma->vm_end - vma->vm_start;
-	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
-	unsigned long page, pos;
-
-	if (offset + size > info->fix.smem_len)
-		return -EINVAL;
-
-	pos = (unsigned long)info->fix.smem_start + offset;
-
-	pr_notice("mmap() framebuffer addr:%lu size:%lu\n",
-		  pos, size);
-
-	while (size > 0) {
-		page = vmalloc_to_pfn((void *)pos);
-		if (remap_pfn_range(vma, start, page, PAGE_SIZE, PAGE_SHARED))
-			return -EAGAIN;
-
-		start += PAGE_SIZE;
-		pos += PAGE_SIZE;
-		if (size > PAGE_SIZE)
-			size -= PAGE_SIZE;
-		else
-			size = 0;
-	}
-
-	/* VM_IO | VM_DONTEXPAND | VM_DONTDUMP are set by remap_pfn_range() */
-	return 0;
-}
-
 static int gm12u320_fb_open(struct fb_info *info, int user)
 {
 	struct gm12u320_fbdev *fbdev = info->par;
@@ -70,11 +38,6 @@ static int gm12u320_fb_open(struct fb_info *info, int user)
 	if (drm_device_is_unplugged(ddev))
 		return -ENODEV;
 
-	return 0;
-}
-
-static int gm12u320_fb_release(struct fb_info *info, int user)
-{
 	return 0;
 }
 
@@ -90,9 +53,7 @@ static struct fb_ops gm12u320_fb_ops = {
 	.fb_setcmap = drm_fb_helper_setcmap,
 	.fb_debug_enter = drm_fb_helper_debug_enter,
 	.fb_debug_leave = drm_fb_helper_debug_leave,
-	.fb_mmap = gm12u320_fb_mmap,
 	.fb_open = gm12u320_fb_open,
-	.fb_release = gm12u320_fb_release,
 };
 
 static void gm12u320_fb_defio_cb(struct fb_info *info, struct list_head *pl)
