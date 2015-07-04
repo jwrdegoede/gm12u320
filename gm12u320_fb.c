@@ -26,16 +26,8 @@
 struct gm12u320_fbdev {
 	struct drm_fb_helper helper;
 	struct gm12u320_framebuffer fb;
-	struct fb_deferred_io defio;
 	struct list_head fbdev_list;
 };
-
-static void gm12u320_defio_cb(struct fb_info *info, struct list_head *pl)
-{
-	struct gm12u320_fbdev *fbdev = info->par;
-
-	gm12u320_update_frame(&fbdev->fb);
-}
 
 static int gm12u320_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 {
@@ -86,7 +78,7 @@ static int gm12u320_fb_release(struct fb_info *info, int user)
 	return 0;
 }
 
-static struct fb_ops gm12u320fb_ops = {
+static struct fb_ops gm12u320_fb_ops = {
 	.owner = THIS_MODULE,
 	.fb_check_var = drm_fb_helper_check_var,
 	.fb_set_par = drm_fb_helper_set_par,
@@ -101,6 +93,18 @@ static struct fb_ops gm12u320fb_ops = {
 	.fb_mmap = gm12u320_fb_mmap,
 	.fb_open = gm12u320_fb_open,
 	.fb_release = gm12u320_fb_release,
+};
+
+static void gm12u320_fb_defio_cb(struct fb_info *info, struct list_head *pl)
+{
+	struct gm12u320_fbdev *fbdev = info->par;
+
+	gm12u320_update_frame(&fbdev->fb);
+}
+
+static struct fb_deferred_io gm12u320_fb_defio = {
+	.delay = HZ / 50,
+	.deferred_io = gm12u320_fb_defio_cb,
 };
 
 static int gm12u320_user_framebuffer_dirty(struct drm_framebuffer *drm_fb,
@@ -227,12 +231,10 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 	info->fix.smem_start = (unsigned long)fbdev->fb.obj->vmapping;
 
 	info->flags = FBINFO_DEFAULT | FBINFO_CAN_FORCE_OUTPUT;
-	info->fbops = &gm12u320fb_ops;
-	info->fbdefio = &fbdev->defio;
+	info->fbops = &gm12u320_fb_ops;
+	info->fbdefio = &gm12u320_fb_defio;
 	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->depth);
 	drm_fb_helper_fill_var(info, &fbdev->helper, sizes->fb_width, sizes->fb_height);
-	fbdev->defio.delay = msecs_to_jiffies(20);
-	fbdev->defio.deferred_io = gm12u320_defio_cb;
 	fb_deferred_io_init(info);
 
 	ret = fb_alloc_cmap(&info->cmap, 256, 0);
