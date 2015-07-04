@@ -38,7 +38,6 @@
 #define GM12U320_REAL_WIDTH	854
 #define GM12U320_HEIGHT		480
 
-#define GM12U320_FRAME_COUNT	2
 #define GM12U320_BLOCK_COUNT	20
 
 struct gm12u320_device;
@@ -51,13 +50,18 @@ struct gm12u320_device {
 	struct drm_device *ddev;
 	struct gm12u320_fbdev *fbdev;
 	unsigned char *cmd_buf;
-	unsigned char *data_buf[GM12U320_FRAME_COUNT][GM12U320_BLOCK_COUNT];
-	struct workqueue_struct *frame_workq;
-	struct work_struct frame_work;
-	wait_queue_head_t frame_waitq;
-	spinlock_t frame_lock;
-	int current_frame;
-	int next_frame;
+	unsigned char *data_buf[GM12U320_BLOCK_COUNT];
+	struct {
+		struct workqueue_struct *workq;
+		struct work_struct work;
+		wait_queue_head_t waitq;
+		spinlock_t lock;
+		struct gm12u320_framebuffer *fb;
+		int x1;
+		int x2;
+		int y1;
+		int y2;
+	} fb_update;
 };
 
 struct gm12u320_gem_object {
@@ -116,8 +120,6 @@ void gm12u320_gem_vunmap(struct gm12u320_gem_object *obj);
 int gm12u320_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
 int gm12u320_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 
-void gm12u320_update_frame(struct gm12u320_framebuffer *fb);
-int gm12u320_handle_damage(struct gm12u320_framebuffer *fb, int x, int y,
-		      int width, int height);
-
+void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
+			    int x1, int x2, int y1, int y2);
 #endif

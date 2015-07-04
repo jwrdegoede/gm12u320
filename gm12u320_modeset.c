@@ -38,7 +38,7 @@ static int gm12u320_crtc_mode_set(struct drm_crtc *crtc,
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(crtc->primary->fb);
 
-	gm12u320_update_frame(fb);
+	gm12u320_fb_mark_dirty(fb, 0, GM12U320_USER_WIDTH, 0, GM12U320_HEIGHT);
 	return 0;
 }
 
@@ -62,7 +62,7 @@ static int gm12u320_crtc_page_flip(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	unsigned long flags;
 
-	gm12u320_update_frame(fb);
+	gm12u320_fb_mark_dirty(fb, 0, GM12U320_USER_WIDTH, 0, GM12U320_HEIGHT);
 
 	spin_lock_irqsave(&dev->event_lock, flags);
 	if (event)

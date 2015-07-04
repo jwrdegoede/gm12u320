@@ -12,6 +12,7 @@
  * more details.
  */
 #include <drm/drmP.h>
+#include <linux/dma-buf.h>
 #include "gm12u320_drv.h"
 
 #define DATA_RCV_EPT			2
@@ -75,46 +76,41 @@ static const char bl_get_set_brightness[CMD_SIZE] =
 
 static int gm12u320_usb_alloc(struct gm12u320_device *gm12u320)
 {
-	int i, k;
-	int block_size;
-	const char *header;
+	int i, block_size;
+	const char *hdr;
 
 	gm12u320->cmd_buf = kmalloc(CMD_SIZE, GFP_KERNEL);
 	if (!gm12u320->cmd_buf)
 		return -ENOMEM;
 
-	for (k = 0; k < GM12U320_FRAME_COUNT; k++) {
-		for (i = 0; i < GM12U320_BLOCK_COUNT; i++) {
-			if (i == GM12U320_BLOCK_COUNT - 1) {
-				block_size = DATA_LAST_BLOCK_SIZE;
-				header = data_last_block_header;
-			} else {
-				block_size = DATA_BLOCK_SIZE;
-				header = data_block_header;
-			}
-
-			gm12u320->data_buf[k][i] = kzalloc(block_size,
-							   GFP_KERNEL);
-			if (!gm12u320->data_buf[k][i])
-				return -ENOMEM;
-
-			memcpy(gm12u320->data_buf[k][i], header,
-			       DATA_BLOCK_HEADER_SIZE);
-			memcpy(gm12u320->data_buf[k][i] +
-					(block_size - DATA_BLOCK_FOOTER_SIZE),
-			       data_block_footer, DATA_BLOCK_FOOTER_SIZE);
+	for (i = 0; i < GM12U320_BLOCK_COUNT; i++) {
+		if (i == GM12U320_BLOCK_COUNT - 1) {
+			block_size = DATA_LAST_BLOCK_SIZE;
+			hdr = data_last_block_header;
+		} else {
+			block_size = DATA_BLOCK_SIZE;
+			hdr = data_block_header;
 		}
+
+		gm12u320->data_buf[i] = kzalloc(block_size, GFP_KERNEL);
+		if (!gm12u320->data_buf[i])
+			return -ENOMEM;
+
+		memcpy(gm12u320->data_buf[i], hdr, DATA_BLOCK_HEADER_SIZE);
+		memcpy(gm12u320->data_buf[i] +
+				(block_size - DATA_BLOCK_FOOTER_SIZE),
+		       data_block_footer, DATA_BLOCK_FOOTER_SIZE);
 	}
+
 	return 0;
 }
 
 static void gm12u320_usb_free(struct gm12u320_device *gm12u320)
 {
-	int i, k;
+	int i;
 
-	for (k = 0; k < GM12U320_FRAME_COUNT; k++)
-		for (i = 0; i < GM12U320_BLOCK_COUNT; i++)
-			kfree(gm12u320->data_buf[k][i]);
+	for (i = 0; i < GM12U320_BLOCK_COUNT; i++)
+		kfree(gm12u320->data_buf[i]);
 
 	kfree(gm12u320->cmd_buf);
 }
@@ -129,38 +125,37 @@ void gm12u320_32bpp_to_24bpp_packed(u8 *dst, u8 *src, int len)
 	}
 }
 
-void gm12u320_update_frame(struct gm12u320_framebuffer *fb)
+static void gm12u320_copy_fb_to_blocks(struct gm12u320_framebuffer *fb,
+				       int x1, int x2, int y1, int y2)
 {
 	struct drm_device *dev = fb->base.dev;
 	struct gm12u320_device *gm12u320 = dev->dev_private;
-	int block, dst_offset, frame, len, remain, ret;
-	unsigned long flags;
+	int block, dst_offset, len, remain, ret;
 	u8 *src;
-	int x1 = 0;
-	int x2 = GM12U320_USER_WIDTH;
-	int y1 = 0;
-	int y2 = GM12U320_HEIGHT;
 
-	if (!fb->obj->vmapping) {
-		ret = gm12u320_gem_vmap(fb->obj);
-		if (ret == -ENOMEM) {
-			DRM_ERROR("failed to vmap fb\n");
-			return;
-		}
-		if (!fb->obj->vmapping) {
-			DRM_ERROR("failed to vmapping\n");
+	if (fb->obj->base.import_attach) {
+		ret = dma_buf_begin_cpu_access(
+			fb->obj->base.import_attach->dmabuf, 0,
+			fb->obj->base.size, DMA_FROM_DEVICE);
+		if (ret) {
+			DRM_ERROR("dma_buf_begin_cpu_access err: %d\n", ret);
 			return;
 		}
 	}
 
-	spin_lock_irqsave(&gm12u320->frame_lock, flags);
-	frame = !gm12u320->current_frame;
-	spin_unlock_irqrestore(&gm12u320->frame_lock, flags);
+	if (!fb->obj->vmapping) {
+		ret = gm12u320_gem_vmap(fb->obj);
+		if (ret) {
+			DRM_ERROR("failed to vmap fb: %d\n", ret);
+			goto end_cpu_access;
+		}
+	}
+
+	src = fb->obj->vmapping + y1 * fb->base.pitches[0] + x1 * 4;
 
 	x1 += (GM12U320_REAL_WIDTH - GM12U320_USER_WIDTH) / 2;
 	x2 += (GM12U320_REAL_WIDTH - GM12U320_USER_WIDTH) / 2;
 
-	src = fb->obj->vmapping;
 	for (; y1 < y2; y1++) {
 		remain = 0;
 		len = (x2 - x1) * 3;
@@ -177,56 +172,68 @@ void gm12u320_update_frame(struct gm12u320_framebuffer *fb)
 		len /= 3;
 
 		gm12u320_32bpp_to_24bpp_packed(
-			gm12u320->data_buf[frame][block] + dst_offset,
+			gm12u320->data_buf[block] + dst_offset,
 			src, len);
 
 		if (remain) {
 			block++;
 			dst_offset = DATA_BLOCK_HEADER_SIZE;
 			gm12u320_32bpp_to_24bpp_packed(
-				gm12u320->data_buf[frame][block] + dst_offset,
+				gm12u320->data_buf[block] + dst_offset,
 				src + len * 4, remain / 3);
 		}
 		src += fb->base.pitches[0];
 	}
 
-	spin_lock_irqsave(&gm12u320->frame_lock, flags);
-	gm12u320->next_frame = frame;
-	spin_unlock_irqrestore(&gm12u320->frame_lock, flags);
-
-	wake_up(&gm12u320->frame_waitq);
+end_cpu_access:
+	if (fb->obj->base.import_attach)
+		dma_buf_end_cpu_access(fb->obj->base.import_attach->dmabuf, 0,
+				       fb->obj->base.size, DMA_FROM_DEVICE);
 }
 
 static int gm12u320_frame_ready(struct gm12u320_device *gm12u320)
 {
 	int ret;
 
-	spin_lock(&gm12u320->frame_lock);
-	ret = gm12u320->next_frame != gm12u320->current_frame;
-	spin_unlock(&gm12u320->frame_lock);
+	spin_lock(&gm12u320->fb_update.lock);
+	ret = gm12u320->fb_update.fb != NULL;
+	spin_unlock(&gm12u320->fb_update.lock);
 
 	return ret;
 }
 
-static void gm12u320_frame_work(struct work_struct *work)
+static void gm12u320_fb_update_work(struct work_struct *work)
 {
 	struct gm12u320_device *gm12u320 =
-		container_of(work, struct gm12u320_device, frame_work);
+		container_of(work, struct gm12u320_device, fb_update.work);
 	int draw_status_timeout = FIRST_FRAME_TIMEOUT;
-	int block, block_size, frame, len, ret;
+	int block, block_size, len, x1, x2, y1, y2;
+	struct gm12u320_framebuffer *fb;
+	int frame = 0;
+	int ret = 0;
 
 	while (1) {
 		/*
 		 * We must draw a frame every 2s otherwise the projector
 		 * switches back to showing its logo.
 		 */
-		wait_event_timeout(gm12u320->frame_waitq,
+		wait_event_timeout(gm12u320->fb_update.waitq,
 				   gm12u320_frame_ready(gm12u320),
 				   IDLE_TIMEOUT);
 
-		spin_lock(&gm12u320->frame_lock);
-		frame = gm12u320->current_frame = gm12u320->next_frame;
-		spin_unlock(&gm12u320->frame_lock);
+		spin_lock(&gm12u320->fb_update.lock);
+		fb = gm12u320->fb_update.fb;
+		x1 = gm12u320->fb_update.x1;
+		x2 = gm12u320->fb_update.x2;
+		y1 = gm12u320->fb_update.y1;
+		y2 = gm12u320->fb_update.y2;
+		gm12u320->fb_update.fb = NULL;
+		spin_unlock(&gm12u320->fb_update.lock);
+
+		if (fb) {
+			gm12u320_copy_fb_to_blocks(fb, x1, x2, y1, y2);
+			drm_framebuffer_unreference(&fb->base);
+		}
 
 		for (block = 0; block < GM12U320_BLOCK_COUNT; block++) {
 			if (block == GM12U320_BLOCK_COUNT - 1)
@@ -242,24 +249,25 @@ static void gm12u320_frame_work(struct work_struct *work)
 			gm12u320->cmd_buf[21] = block | (frame << 7);
 
 			ret = usb_bulk_msg(gm12u320->udev,
-				   usb_sndbulkpipe(gm12u320->udev, DATA_SND_EPT),
-				   gm12u320->cmd_buf, CMD_SIZE, &len, CMD_TIMEOUT);
+				usb_sndbulkpipe(gm12u320->udev, DATA_SND_EPT),
+				gm12u320->cmd_buf, CMD_SIZE, &len,
+				CMD_TIMEOUT);
 			if (ret || len != CMD_SIZE)
 				goto err;
 
 			/* Send data block to device */
 			ret = usb_bulk_msg(gm12u320->udev,
-				   usb_sndbulkpipe(gm12u320->udev, DATA_SND_EPT),
-				   gm12u320->data_buf[frame][block], block_size,
-				   &len, DATA_TIMEOUT);
+				usb_sndbulkpipe(gm12u320->udev, DATA_SND_EPT),
+				gm12u320->data_buf[block], block_size,
+				&len, DATA_TIMEOUT);
 			if (ret || len != block_size)
 				goto err;
 
 			/* Read status */
 			ret = usb_bulk_msg(gm12u320->udev,
-				   usb_rcvbulkpipe(gm12u320->udev, DATA_RCV_EPT),
-				   gm12u320->cmd_buf, READ_BLOCK_SIZE, &len,
-				   CMD_TIMEOUT);
+				usb_rcvbulkpipe(gm12u320->udev, DATA_RCV_EPT),
+				gm12u320->cmd_buf, READ_BLOCK_SIZE, &len,
+				CMD_TIMEOUT);
 			if (ret || len != READ_BLOCK_SIZE)
 				goto err;
 		}
@@ -267,20 +275,21 @@ static void gm12u320_frame_work(struct work_struct *work)
 		/* Send draw command to device */
 		memcpy(gm12u320->cmd_buf, cmd_draw, CMD_SIZE);
 		ret = usb_bulk_msg(gm12u320->udev,
-				   usb_sndbulkpipe(gm12u320->udev, DATA_SND_EPT),
-				   gm12u320->cmd_buf, CMD_SIZE, &len, CMD_TIMEOUT);
+			usb_sndbulkpipe(gm12u320->udev, DATA_SND_EPT),
+			gm12u320->cmd_buf, CMD_SIZE, &len, CMD_TIMEOUT);
 		if (ret || len != CMD_SIZE)
 			goto err;
 
 		/* Read status */
 		ret = usb_bulk_msg(gm12u320->udev,
-			   usb_rcvbulkpipe(gm12u320->udev, DATA_RCV_EPT),
-			   gm12u320->cmd_buf, READ_BLOCK_SIZE, &len,
-			   draw_status_timeout);
+			usb_rcvbulkpipe(gm12u320->udev, DATA_RCV_EPT),
+			gm12u320->cmd_buf, READ_BLOCK_SIZE, &len,
+			draw_status_timeout);
 		if (ret || len != READ_BLOCK_SIZE)
 			goto err;
 
 		draw_status_timeout = CMD_TIMEOUT;
+		frame = !frame;
 	}
 err:
 	/* Do not log errors caused by module unload or device unplug */
@@ -304,23 +313,16 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	gm12u320->ddev = dev;
 	dev->dev_private = gm12u320;
 
-	INIT_WORK(&gm12u320->frame_work, gm12u320_frame_work);
-	spin_lock_init(&gm12u320->frame_lock);
-	init_waitqueue_head(&gm12u320->frame_waitq);
-
-	/*
-	 * These are deliberately different so that we send out an empty
-	 * screen to replace the projector logo immediately.
-	 */
-	gm12u320->current_frame = 1;
-	gm12u320->next_frame = 0;
+	INIT_WORK(&gm12u320->fb_update.work, gm12u320_fb_update_work);
+	spin_lock_init(&gm12u320->fb_update.lock);
+	init_waitqueue_head(&gm12u320->fb_update.waitq);
 
 	ret = gm12u320_usb_alloc(gm12u320);
 	if (ret)
 		goto err;
 
-	gm12u320->frame_workq = create_singlethread_workqueue(DRIVER_NAME);
-	if (!gm12u320->frame_workq) {
+	gm12u320->fb_update.workq = create_singlethread_workqueue(DRIVER_NAME);
+	if (!gm12u320->fb_update.workq) {
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -338,7 +340,7 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	if (ret)
 		goto err_fb;
 
-	queue_work(gm12u320->frame_workq, &gm12u320->frame_work);
+	queue_work(gm12u320->fb_update.workq, &gm12u320->fb_update.work);
 
 	return 0;
 err_fb:
@@ -354,11 +356,16 @@ int gm12u320_driver_unload(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 
-	/* Wake up frame_work, so that it sees the disconnect and exits */
-	wake_up(&gm12u320->frame_waitq);
-	cancel_work_sync(&gm12u320->frame_work);
-	destroy_workqueue(gm12u320->frame_workq);
+	/* Wake up fb_update_work, so that it sees the disconnect and exits */
+	wake_up(&gm12u320->fb_update.waitq);
+	cancel_work_sync(&gm12u320->fb_update.work);
+	destroy_workqueue(gm12u320->fb_update.workq);
 	gm12u320_usb_free(gm12u320);
+
+	spin_lock(&gm12u320->fb_update.lock);
+	if (gm12u320->fb_update.fb)
+		drm_framebuffer_unreference(&gm12u320->fb_update.fb->base);
+	spin_unlock(&gm12u320->fb_update.lock);
 
 	drm_vblank_cleanup(dev);
 	gm12u320_fbdev_cleanup(dev);

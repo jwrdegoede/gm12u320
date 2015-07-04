@@ -14,7 +14,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/fb.h>
-#include <linux/dma-buf.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
@@ -28,6 +27,72 @@ struct gm12u320_fbdev {
 	struct gm12u320_framebuffer fb;
 	struct list_head fbdev_list;
 };
+
+void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
+			    int x1, int x2, int y1, int y2)
+{
+	struct drm_device *dev = fb->base.dev;
+	struct gm12u320_device *gm12u320 = dev->dev_private;
+	struct gm12u320_framebuffer *old_fb = NULL;
+	bool wakeup = false;
+	unsigned long flags;
+
+	spin_lock_irqsave(&gm12u320->fb_update.lock, flags);
+
+	if (gm12u320->fb_update.fb != fb) {
+		gm12u320->fb_update.x1 = x1;
+		gm12u320->fb_update.x2 = x2;
+		gm12u320->fb_update.y1 = y1;
+		gm12u320->fb_update.y2 = y2;
+		old_fb = gm12u320->fb_update.fb;
+		gm12u320->fb_update.fb = fb;
+		drm_framebuffer_reference(&gm12u320->fb_update.fb->base);
+		wakeup = true;
+	} else {
+		gm12u320->fb_update.x1 = min(gm12u320->fb_update.x1, x1);
+		gm12u320->fb_update.x2 = max(gm12u320->fb_update.x2, x2);
+		gm12u320->fb_update.y1 = min(gm12u320->fb_update.y1, y1);
+		gm12u320->fb_update.y2 = max(gm12u320->fb_update.y2, y2);
+	}
+
+	spin_unlock_irqrestore(&gm12u320->fb_update.lock, flags);
+
+	if (wakeup)
+		wake_up(&gm12u320->fb_update.waitq);
+
+	if (old_fb)
+		drm_framebuffer_unreference(&old_fb->base);
+}
+
+static void gm12u320_fb_fillrect(struct fb_info *info,
+	const struct fb_fillrect *rect)
+{
+	struct gm12u320_fbdev *fbdev = info->par;
+
+	sys_fillrect(info, rect);
+	gm12u320_fb_mark_dirty(&fbdev->fb, rect->dx, rect->dx + rect->width,
+			       rect->dy, rect->dy + rect->height);
+}
+
+static void gm12u320_fb_copyarea(struct fb_info *info,
+	const struct fb_copyarea *rect)
+{
+	struct gm12u320_fbdev *fbdev = info->par;
+
+	sys_copyarea(info, rect);
+	gm12u320_fb_mark_dirty(&fbdev->fb, rect->dx, rect->dx + rect->width,
+			       rect->dy, rect->dy + rect->height);
+}
+
+static void gm12u320_fb_imageblit(struct fb_info *info,
+	const struct fb_image *rect)
+{
+	struct gm12u320_fbdev *fbdev = info->par;
+
+	sys_imageblit(info, rect);
+	gm12u320_fb_mark_dirty(&fbdev->fb, rect->dx, rect->dx + rect->width,
+			       rect->dy, rect->dy + rect->height);
+}
 
 static int gm12u320_fb_open(struct fb_info *info, int user)
 {
@@ -45,9 +110,9 @@ static struct fb_ops gm12u320_fb_ops = {
 	.owner = THIS_MODULE,
 	.fb_check_var = drm_fb_helper_check_var,
 	.fb_set_par = drm_fb_helper_set_par,
-	.fb_fillrect = sys_fillrect,
-	.fb_copyarea = sys_copyarea,
-	.fb_imageblit = sys_imageblit,
+	.fb_fillrect = gm12u320_fb_fillrect,
+	.fb_copyarea = gm12u320_fb_copyarea,
+	.fb_imageblit = gm12u320_fb_imageblit,
 	.fb_pan_display = drm_fb_helper_pan_display,
 	.fb_blank = drm_fb_helper_blank,
 	.fb_setcmap = drm_fb_helper_setcmap,
@@ -59,8 +124,25 @@ static struct fb_ops gm12u320_fb_ops = {
 static void gm12u320_fb_defio_cb(struct fb_info *info, struct list_head *pl)
 {
 	struct gm12u320_fbdev *fbdev = info->par;
+	unsigned long start, end, min, max;
+	struct page *page;
+	int y1, y2;
 
-	gm12u320_update_frame(&fbdev->fb);
+	min = ULONG_MAX;
+	max = 0;
+	list_for_each_entry(page, pl, lru) {
+		start = page->index << PAGE_SHIFT;
+		end = start + PAGE_SIZE - 1;
+		min = min(min, start);
+		max = max(max, end);
+	}
+
+	if (min > max)
+		return;
+
+	y1 = min / info->fix.line_length;
+	y2 = (max / info->fix.line_length) + 1;
+	gm12u320_fb_mark_dirty(&fbdev->fb, 0, GM12U320_USER_WIDTH, y1, y2);
 }
 
 static struct fb_deferred_io gm12u320_fb_defio = {
@@ -75,29 +157,27 @@ static int gm12u320_user_framebuffer_dirty(struct drm_framebuffer *drm_fb,
 				      unsigned num_clips)
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(drm_fb);
-	int ret = 0;
+	int x1, x2, y1, y2;
 
-	drm_modeset_lock_all(drm_fb->dev);
+	if (num_clips == 0)
+		return 0;
 
-	if (fb->obj->base.import_attach) {
-		ret = dma_buf_begin_cpu_access(
-			fb->obj->base.import_attach->dmabuf, 0,
-			fb->obj->base.size, DMA_FROM_DEVICE);
-		if (ret)
-			goto unlock;
+	x1 = clips->x1;
+	x2 = clips->x2;
+	y1 = clips->y1;
+	y2 = clips->y2;
+
+	while (--num_clips) {
+		clips++;
+		x1 = min_t(int, x1, (int)clips->x1);
+		x2 = max_t(int, x2, (int)clips->x2);
+		y1 = min_t(int, y1, (int)clips->y1);
+		y2 = max_t(int, y2, (int)clips->y2);
 	}
 
-	gm12u320_update_frame(fb);
+	gm12u320_fb_mark_dirty(fb, x1, x2, y1, y2);
 
-	if (fb->obj->base.import_attach) {
-		dma_buf_end_cpu_access(fb->obj->base.import_attach->dmabuf, 0,
-				       fb->obj->base.size, DMA_FROM_DEVICE);
-	}
-
- unlock:
-	drm_modeset_unlock_all(drm_fb->dev);
-
-	return ret;
+	return 0;
 }
 
 static void gm12u320_user_framebuffer_destroy(struct drm_framebuffer *drm_fb)
@@ -116,7 +196,6 @@ static const struct drm_framebuffer_funcs gm12u320fb_funcs = {
 	.dirty = gm12u320_user_framebuffer_dirty,
 };
 
-
 static int
 gm12u320_framebuffer_init(struct drm_device *dev,
 		     struct gm12u320_framebuffer *fb,
@@ -130,7 +209,6 @@ gm12u320_framebuffer_init(struct drm_device *dev,
 	ret = drm_framebuffer_init(dev, &fb->base, &gm12u320fb_funcs);
 	return ret;
 }
-
 
 static int gm12u320fb_create(struct drm_fb_helper *helper,
 			struct drm_fb_helper_surface_size *sizes)
