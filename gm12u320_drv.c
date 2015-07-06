@@ -107,6 +107,7 @@ static void gm12u320_usb_disconnect(struct usb_interface *interface)
 	drm_kms_helper_poll_disable(dev);
 	drm_connector_unplug_all(dev);
 	gm12u320_fbdev_unplug(dev);
+	gm12u320_stop_fb_update(dev);
 	drm_unplug_dev(dev);
 }
 

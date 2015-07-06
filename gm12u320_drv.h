@@ -52,6 +52,7 @@ struct gm12u320_device {
 	unsigned char *cmd_buf;
 	unsigned char *data_buf[GM12U320_BLOCK_COUNT];
 	struct {
+		bool run;
 		struct workqueue_struct *workq;
 		struct work_struct work;
 		wait_queue_head_t waitq;
@@ -122,4 +123,7 @@ int gm12u320_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 
 void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
 			    int x1, int x2, int y1, int y2);
+void gm12u320_start_fb_update(struct drm_device *dev);
+void gm12u320_stop_fb_update(struct drm_device *dev);
+
 #endif

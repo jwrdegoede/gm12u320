@@ -281,12 +281,12 @@ end_cpu_access:
 				       fb->obj->base.size, DMA_FROM_DEVICE);
 }
 
-static int gm12u320_frame_ready(struct gm12u320_device *gm12u320)
+static int gm12u320_fb_update_ready(struct gm12u320_device *gm12u320)
 {
 	int ret;
 
 	spin_lock(&gm12u320->fb_update.lock);
-	ret = gm12u320->fb_update.fb != NULL;
+	ret = !gm12u320->fb_update.run || gm12u320->fb_update.fb != NULL;
 	spin_unlock(&gm12u320->fb_update.lock);
 
 	return ret;
@@ -302,15 +302,7 @@ static void gm12u320_fb_update_work(struct work_struct *work)
 	int frame = 0;
 	int ret = 0;
 
-	while (1) {
-		/*
-		 * We must draw a frame every 2s otherwise the projector
-		 * switches back to showing its logo.
-		 */
-		wait_event_timeout(gm12u320->fb_update.waitq,
-				   gm12u320_frame_ready(gm12u320),
-				   IDLE_TIMEOUT);
-
+	while (gm12u320->fb_update.run) {
 		spin_lock(&gm12u320->fb_update.lock);
 		fb = gm12u320->fb_update.fb;
 		x1 = gm12u320->fb_update.x1;
@@ -380,12 +372,50 @@ static void gm12u320_fb_update_work(struct work_struct *work)
 
 		draw_status_timeout = CMD_TIMEOUT;
 		frame = !frame;
+
+		/*
+		 * We must draw a frame every 2s otherwise the projector
+		 * switches back to showing its logo.
+		 */
+		wait_event_timeout(gm12u320->fb_update.waitq,
+				   gm12u320_fb_update_ready(gm12u320),
+				   IDLE_TIMEOUT);
 	}
+	return;
 err:
 	/* Do not log errors caused by module unload or device unplug */
-	if (ret != -ENOENT && ret != -ECONNRESET && ret != -ESHUTDOWN &&
-	    ret != -ENODEV)
+	if (ret != -ECONNRESET && ret != -ESHUTDOWN)
 		dev_err(&gm12u320->udev->dev, "Frame update error: %d\n", ret);
+}
+
+void gm12u320_start_fb_update(struct drm_device *dev)
+{
+	struct gm12u320_device *gm12u320 = dev->dev_private;
+
+	spin_lock(&gm12u320->fb_update.lock);
+	gm12u320->fb_update.run = true;
+	spin_unlock(&gm12u320->fb_update.lock);
+
+	queue_work(gm12u320->fb_update.workq, &gm12u320->fb_update.work);
+}
+
+void gm12u320_stop_fb_update(struct drm_device *dev)
+{
+	struct gm12u320_device *gm12u320 = dev->dev_private;
+
+	spin_lock(&gm12u320->fb_update.lock);
+	gm12u320->fb_update.run = false;
+	spin_unlock(&gm12u320->fb_update.lock);
+
+	wake_up(&gm12u320->fb_update.waitq);
+	cancel_work_sync(&gm12u320->fb_update.work);
+
+	spin_lock(&gm12u320->fb_update.lock);
+	if (gm12u320->fb_update.fb) {
+		drm_framebuffer_unreference(&gm12u320->fb_update.fb->base);
+		gm12u320->fb_update.fb = NULL;
+	}
+	spin_unlock(&gm12u320->fb_update.lock);
 }
 
 int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
@@ -413,15 +443,15 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	if (ret)
 		goto err;
 
-	ret = gm12u320_usb_alloc(gm12u320);
-	if (ret)
-		goto err;
-
 	gm12u320->fb_update.workq = create_singlethread_workqueue(DRIVER_NAME);
 	if (!gm12u320->fb_update.workq) {
 		ret = -ENOMEM;
 		goto err;
 	}
+
+	ret = gm12u320_usb_alloc(gm12u320);
+	if (ret)
+		goto err;
 
 	DRM_DEBUG("\n");
 	ret = gm12u320_modeset_init(dev);
@@ -436,7 +466,7 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	if (ret)
 		goto err_fb;
 
-	queue_work(gm12u320->fb_update.workq, &gm12u320->fb_update.work);
+	gm12u320_start_fb_update(dev);
 
 	return 0;
 err_fb:
@@ -452,20 +482,12 @@ int gm12u320_driver_unload(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 
-	/* Wake up fb_update_work, so that it sees the disconnect and exits */
-	wake_up(&gm12u320->fb_update.waitq);
-	cancel_work_sync(&gm12u320->fb_update.work);
-	destroy_workqueue(gm12u320->fb_update.workq);
-	gm12u320_usb_free(gm12u320);
-
-	spin_lock(&gm12u320->fb_update.lock);
-	if (gm12u320->fb_update.fb)
-		drm_framebuffer_unreference(&gm12u320->fb_update.fb->base);
-	spin_unlock(&gm12u320->fb_update.lock);
 
 	drm_vblank_cleanup(dev);
 	gm12u320_fbdev_cleanup(dev);
 	gm12u320_modeset_cleanup(dev);
+	gm12u320_usb_free(gm12u320);
+	destroy_workqueue(gm12u320->fb_update.workq);
 	kfree(gm12u320);
 	return 0;
 }
