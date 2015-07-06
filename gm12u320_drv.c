@@ -124,4 +124,5 @@ static struct usb_driver gm12u320_driver = {
 };
 
 module_usb_driver(gm12u320_driver);
+MODULE_AUTHOR("Hans de Goede <hdegoede@redhat.com>");
 MODULE_LICENSE("GPL");
