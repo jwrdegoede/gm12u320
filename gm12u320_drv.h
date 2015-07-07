@@ -125,5 +125,6 @@ void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
 			    int x1, int x2, int y1, int y2);
 void gm12u320_start_fb_update(struct drm_device *dev);
 void gm12u320_stop_fb_update(struct drm_device *dev);
+int gm12u320_set_ecomode(struct drm_device *dev);
 
 #endif

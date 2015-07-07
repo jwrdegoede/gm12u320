@@ -111,6 +111,32 @@ static void gm12u320_usb_disconnect(struct usb_interface *interface)
 	drm_unplug_dev(dev);
 }
 
+#ifdef CONFIG_PM
+
+int gm12u320_suspend(struct usb_interface *interface, pm_message_t message)
+{
+	struct drm_device *dev = usb_get_intfdata(interface);
+
+	if (!dev)
+		return 0;
+
+	gm12u320_stop_fb_update(dev);
+	return 0;
+}
+
+int gm12u320_resume(struct usb_interface *interface)
+{
+	struct drm_device *dev = usb_get_intfdata(interface);
+
+	if (!dev)
+		return 0;
+
+	gm12u320_set_ecomode(dev);
+	gm12u320_start_fb_update(dev);
+	return 0;
+}
+#endif
+
 static struct usb_device_id id_table[] = {
 	{ USB_DEVICE(0x1de1, 0xc102) },
 	{},
@@ -122,6 +148,11 @@ static struct usb_driver gm12u320_driver = {
 	.probe = gm12u320_usb_probe,
 	.disconnect = gm12u320_usb_disconnect,
 	.id_table = id_table,
+#ifdef CONFIG_PM
+	.suspend = gm12u320_suspend,
+	.resume = gm12u320_resume,
+	.reset_resume = gm12u320_resume,
+#endif
 };
 
 module_usb_driver(gm12u320_driver);

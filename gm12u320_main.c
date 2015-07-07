@@ -437,9 +437,7 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	spin_lock_init(&gm12u320->fb_update.lock);
 	init_waitqueue_head(&gm12u320->fb_update.waitq);
 
-	ret = gm12u320_misc_request(gm12u320, MISC_REQ_GET_SET_ECO_A,
-				    MISC_REQ_GET_SET_ECO_B, 0x01 /* set */,
-				    eco_mode ? 0x01 : 0x00, 0x00, 0x01);
+	ret = gm12u320_set_ecomode(dev);
 	if (ret)
 		goto err;
 
@@ -482,7 +480,6 @@ int gm12u320_driver_unload(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 
-
 	drm_vblank_cleanup(dev);
 	gm12u320_fbdev_cleanup(dev);
 	gm12u320_modeset_cleanup(dev);
@@ -490,4 +487,13 @@ int gm12u320_driver_unload(struct drm_device *dev)
 	destroy_workqueue(gm12u320->fb_update.workq);
 	kfree(gm12u320);
 	return 0;
+}
+
+int gm12u320_set_ecomode(struct drm_device *dev)
+{
+	struct gm12u320_device *gm12u320 = dev->dev_private;
+
+	return gm12u320_misc_request(gm12u320, MISC_REQ_GET_SET_ECO_A,
+				     MISC_REQ_GET_SET_ECO_B, 0x01 /* set */,
+				     eco_mode ? 0x01 : 0x00, 0x00, 0x01);
 }
