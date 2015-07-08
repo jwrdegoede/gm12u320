@@ -1,0 +1,24 @@
+Linux kernel modesetting driver for Grain Media GM12U320 based devices
+(primarily Acer C120 projector, but there may be compatible devices).
+
+This is based on the fb driver from Viacheslav Nurmekhamitov:
+https://github.com/slavrn/gm12u320
+
+This driver supports PRIME, allowing the projector to be setup as a slave
+output of your main gpu using xrandr --listproviders and
+xrandr --setprovideroutputsource. After which the projector can be used as
+a second monitor using your desktop environment config panel to select
+clone or second monitor mode. HW 3d rendering is supported and will use the
+main gpu and the rendered images will then be send to the projector via dma.
+
+Installation:
+
+make
+sudo make modules_install
+sudo depmod -a
+
+The gm12u320 represents itself to the system as an usb-storage device, to
+avoid the usb-storage driver grabbing the device before the gm12u320 driver
+can bind to it, add "usb-storage.quirks=1de1:c102:i" to your kernel cmdline.
+
+Reboot so that the new kernel cmdline is used, all done.
