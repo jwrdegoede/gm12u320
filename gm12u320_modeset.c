@@ -59,7 +59,7 @@ static int gm12u320_crtc_page_flip(struct drm_crtc *crtc,
 
 	spin_lock_irqsave(&dev->event_lock, flags);
 	if (event)
-		drm_send_vblank_event(dev, 0, event);
+		drm_crtc_send_vblank_event(crtc, event);
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	crtc->primary->fb = drm_fb;
