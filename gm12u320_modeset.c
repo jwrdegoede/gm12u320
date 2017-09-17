@@ -127,8 +127,6 @@ int gm12u320_modeset_init(struct drm_device *dev)
 
 	dev->mode_config.funcs = &gm12u320_mode_funcs;
 
-	drm_mode_create_dirty_info_property(dev);
-
 	gm12u320_crtc_init(dev);
 
 	encoder = gm12u320_encoder_init(dev);
