@@ -49,7 +49,8 @@ static void gm12u320_crtc_destroy(struct drm_crtc *crtc)
 static int gm12u320_crtc_page_flip(struct drm_crtc *crtc,
 				   struct drm_framebuffer *drm_fb,
 				   struct drm_pending_vblank_event *event,
-				   uint32_t page_flip_flags)
+				   uint32_t page_flip_flags,
+				   struct drm_modeset_acquire_ctx *ctx)
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(drm_fb);
 	struct drm_device *dev = crtc->dev;
