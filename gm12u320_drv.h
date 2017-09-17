@@ -91,7 +91,7 @@ int gm12u320_connector_init(struct drm_device *dev,
 struct drm_encoder *gm12u320_encoder_init(struct drm_device *dev);
 
 int gm12u320_driver_load(struct drm_device *dev, unsigned long flags);
-int gm12u320_driver_unload(struct drm_device *dev);
+void gm12u320_driver_unload(struct drm_device *dev);
 
 int gm12u320_fbdev_init(struct drm_device *dev);
 void gm12u320_fbdev_cleanup(struct drm_device *dev);
