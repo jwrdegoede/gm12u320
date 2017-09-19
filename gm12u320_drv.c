@@ -30,9 +30,7 @@ static const struct file_operations gm12u320_driver_fops = {
 	.read = drm_read,
 	.unlocked_ioctl	= drm_ioctl,
 	.release = drm_release,
-#ifdef CONFIG_COMPAT
 	.compat_ioctl = drm_compat_ioctl,
-#endif
 	.llseek = noop_llseek,
 };
 
@@ -80,8 +78,8 @@ static int gm12u320_usb_probe(struct usb_interface *interface,
 		return 0;
 
 	dev = drm_dev_alloc(&driver, &interface->dev);
-	if (!dev)
-		return -ENOMEM;
+	if (IS_ERR(dev))
+		return PTR_ERR(dev);
 
 	r = drm_dev_register(dev, (unsigned long)udev);
 	if (r)

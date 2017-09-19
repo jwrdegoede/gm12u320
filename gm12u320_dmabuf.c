@@ -210,7 +210,7 @@ struct dma_buf *gm12u320_gem_prime_export(struct drm_device *dev,
 	exp_info.flags = flags;
 	exp_info.priv = obj;
 
-	return dma_buf_export(&exp_info);
+	return drm_gem_dmabuf_export(dev, &exp_info);
 }
 
 static int gm12u320_prime_create(struct drm_device *dev,

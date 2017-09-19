@@ -100,18 +100,17 @@ int gm12u320_gem_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 	struct gm12u320_gem_object *obj = to_gm12u320_bo(vma->vm_private_data);
-	struct page *page;
 	unsigned int page_offset;
+	struct page *page;
 	int ret = 0;
 
-	page_offset = ((unsigned long)vmf->virtual_address - vma->vm_start) >>
-		PAGE_SHIFT;
+	page_offset = (vmf->address - vma->vm_start) >> PAGE_SHIFT;
 
 	if (!obj->pages)
 		return VM_FAULT_SIGBUS;
 
 	page = obj->pages[page_offset];
-	ret = vm_insert_page(vma, (unsigned long)vmf->virtual_address, page);
+	ret = vm_insert_page(vma, vmf->address, page);
 	switch (ret) {
 	case -EAGAIN:
 	case 0:

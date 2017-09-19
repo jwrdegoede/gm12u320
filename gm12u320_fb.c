@@ -76,23 +76,19 @@ static int gm12u320_fb_open(struct fb_info *info, int user)
 
 static struct fb_ops gm12u320_fb_ops = {
 	.owner = THIS_MODULE,
-	.fb_check_var = drm_fb_helper_check_var,
-	.fb_set_par = drm_fb_helper_set_par,
+	DRM_FB_HELPER_DEFAULT_OPS,
 	.fb_fillrect = drm_fb_helper_sys_fillrect,
 	.fb_copyarea = drm_fb_helper_sys_copyarea,
 	.fb_imageblit = drm_fb_helper_sys_imageblit,
-	.fb_pan_display = drm_fb_helper_pan_display,
-	.fb_blank = drm_fb_helper_blank,
-	.fb_setcmap = drm_fb_helper_setcmap,
-	.fb_debug_enter = drm_fb_helper_debug_enter,
-	.fb_debug_leave = drm_fb_helper_debug_leave,
 	.fb_open = gm12u320_fb_open,
 };
 
+#ifdef CONFIG_DRM_FBDEV_EMULATION
 static struct fb_deferred_io gm12u320_fb_defio = {
 	.delay = HZ / 30,
 	.deferred_io = drm_fb_helper_deferred_io,
 };
+#endif
 
 static int gm12u320_user_framebuffer_dirty(struct drm_framebuffer *drm_fb,
 					   struct drm_file *file,
@@ -149,7 +145,7 @@ gm12u320_framebuffer_init(struct drm_device *dev,
 	int ret;
 
 	fb->obj = obj;
-	drm_helper_mode_fill_fb_struct(&fb->base, mode_cmd);
+	drm_helper_mode_fill_fb_struct(dev, &fb->base, mode_cmd);
 	ret = drm_framebuffer_init(dev, &fb->base, &gm12u320fb_funcs);
 	return ret;
 }
@@ -213,11 +209,13 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 
 	info->flags = FBINFO_DEFAULT | FBINFO_CAN_FORCE_OUTPUT;
 	info->fbops = &gm12u320_fb_ops;
-	info->fbdefio = &gm12u320_fb_defio;
-	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->depth);
+	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->format->depth);
 	drm_fb_helper_fill_var(info, &fbdev->helper,
 			       sizes->fb_width, sizes->fb_height);
+#ifdef CONFIG_DRM_FBDEV_EMULATION
+	info->fbdefio = &gm12u320_fb_defio;
 	fb_deferred_io_init(info);
+#endif
 
 	DRM_DEBUG_KMS("allocated %dx%d vmal %p\n",
 		      drm_fb->width, drm_fb->height,
@@ -240,6 +238,9 @@ static const struct drm_fb_helper_funcs gm12u320_fb_helper_funcs = {
 static void gm12u320_fbdev_destroy(struct drm_device *dev,
 				   struct gm12u320_fbdev *fbdev)
 {
+#ifdef CONFIG_DRM_FBDEV_EMULATION
+	fb_deferred_io_cleanup(fbdev->helper.fbdev);
+#endif
 	drm_fb_helper_unregister_fbi(&fbdev->helper);
 	drm_fb_helper_release_fbi(&fbdev->helper);
 	drm_fb_helper_fini(&fbdev->helper);
@@ -262,7 +263,7 @@ int gm12u320_fbdev_init(struct drm_device *dev)
 
 	drm_fb_helper_prepare(dev, &fbdev->helper, &gm12u320_fb_helper_funcs);
 
-	ret = drm_fb_helper_init(dev, &fbdev->helper, 1, 1);
+	ret = drm_fb_helper_init(dev, &fbdev->helper, 1);
 	if (ret)
 		goto free;
 
