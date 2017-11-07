@@ -87,7 +87,7 @@ static int gm12u320_get_modes(struct drm_connector *connector)
 static enum drm_connector_status
 gm12u320_detect(struct drm_connector *connector, bool force)
 {
-	if (drm_device_is_unplugged(connector->dev))
+	if (drm_dev_is_unplugged(connector->dev))
 		return connector_status_disconnected;
 
 	return connector_status_connected;
