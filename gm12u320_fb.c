@@ -68,7 +68,7 @@ static int gm12u320_fb_open(struct fb_info *info, int user)
 	struct drm_device *ddev = fbdev->fb.base.dev;
 
 	/* If the USB device is gone, we don't accept new opens */
-	if (drm_device_is_unplugged(ddev))
+	if (drm_dev_is_unplugged(ddev))
 		return -ENODEV;
 
 	return 0;
