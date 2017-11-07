@@ -11,11 +11,6 @@
 #include <drm/drm_crtc_helper.h>
 #include "gm12u320_drv.h"
 
-static int gm12u320_driver_set_busid(struct drm_device *d, struct drm_master *m)
-{
-	return 0;
-}
-
 static const struct vm_operations_struct gm12u320_gem_vm_ops = {
 	.fault = gm12u320_gem_fault,
 	.open = drm_gem_vm_open,
@@ -38,7 +33,6 @@ static struct drm_driver driver = {
 	.driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_PRIME,
 	.load = gm12u320_driver_load,
 	.unload = gm12u320_driver_unload,
-	.set_busid = gm12u320_driver_set_busid,
 
 	/* gem hooks */
 	.gem_free_object = gm12u320_gem_free_object,
@@ -105,7 +99,7 @@ static void gm12u320_usb_disconnect(struct usb_interface *interface)
 	drm_kms_helper_poll_disable(dev);
 	gm12u320_fbdev_unplug(dev);
 	gm12u320_stop_fb_update(dev);
-	drm_unplug_dev(dev);
+	drm_dev_unplug(dev);
 }
 
 #ifdef CONFIG_PM
