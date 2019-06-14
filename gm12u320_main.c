@@ -463,16 +463,10 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	if (ret)
 		goto err_modeset;
 
-	ret = drm_vblank_init(dev, 1);
-	if (ret)
-		goto err_fb;
-
 	gm12u320_start_fb_update(dev);
 
 	return 0;
 
-err_fb:
-	gm12u320_fbdev_cleanup(dev);
 err_modeset:
 	gm12u320_modeset_cleanup(dev);
 err_usb:
