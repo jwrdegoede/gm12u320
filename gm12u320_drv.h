@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * Based in parts on the udl code. Based in parts on the gm12u320 fb driver:
  * Copyright (C) 2013 Viacheslav Nurmekhamitov <slavrn@yandex.ru>
@@ -56,7 +56,7 @@ struct gm12u320_device {
 		struct workqueue_struct *workq;
 		struct work_struct work;
 		wait_queue_head_t waitq;
-		spinlock_t lock;
+		struct mutex lock;
 		struct gm12u320_framebuffer *fb;
 		int x1;
 		int x2;
@@ -85,7 +85,8 @@ struct gm12u320_framebuffer {
 /* modeset */
 int gm12u320_modeset_init(struct drm_device *dev);
 void gm12u320_modeset_cleanup(struct drm_device *dev);
-int gm12u320_connector_init(struct drm_device *dev, struct drm_encoder *encoder);
+int gm12u320_connector_init(struct drm_device *dev,
+			    struct drm_encoder *encoder);
 
 struct drm_encoder *gm12u320_encoder_init(struct drm_device *dev);
 
@@ -96,23 +97,21 @@ int gm12u320_fbdev_init(struct drm_device *dev);
 void gm12u320_fbdev_cleanup(struct drm_device *dev);
 void gm12u320_fbdev_unplug(struct drm_device *dev);
 struct drm_framebuffer *
-gm12u320_fb_user_fb_create(struct drm_device *dev,
-		      struct drm_file *file,
-		      struct drm_mode_fb_cmd2 *mode_cmd);
+gm12u320_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
+			   const struct drm_mode_fb_cmd2 *mode_cmd);
 
-int gm12u320_dumb_create(struct drm_file *file_priv,
-		    struct drm_device *dev,
-		    struct drm_mode_create_dumb *args);
+int gm12u320_dumb_create(struct drm_file *file_priv, struct drm_device *dev,
+			 struct drm_mode_create_dumb *args);
 int gm12u320_gem_mmap(struct drm_file *file_priv, struct drm_device *dev,
-		 uint32_t handle, uint64_t *offset);
+		      uint32_t handle, uint64_t *offset);
 
+struct gm12u320_gem_object *
+gm12u320_gem_alloc_object(struct drm_device *dev, size_t size);
 void gm12u320_gem_free_object(struct drm_gem_object *gem_obj);
-struct gm12u320_gem_object *gm12u320_gem_alloc_object(struct drm_device *dev,
-					    size_t size);
 struct dma_buf *gm12u320_gem_prime_export(struct drm_device *dev,
-				     struct drm_gem_object *obj, int flags);
+				      struct drm_gem_object *obj, int flags);
 struct drm_gem_object *gm12u320_gem_prime_import(struct drm_device *dev,
-				struct dma_buf *dma_buf);
+						 struct dma_buf *dma_buf);
 
 int gm12u320_gem_get_pages(struct gm12u320_gem_object *obj);
 void gm12u320_gem_put_pages(struct gm12u320_gem_object *obj);

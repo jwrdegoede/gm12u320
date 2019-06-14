@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * Based in parts on the udl code. Based in parts on the gm12u320 fb driver:
  * Copyright (C) 2013 Viacheslav Nurmekhamitov <slavrn@yandex.ru>
@@ -20,7 +20,7 @@
 
 /*
  * Note this assumes this driver is only ever used with the Acer C120, if we
- * add support for other devices the vendor and model should be parametrized.
+ * add support for other devices the vendor and model should be parameterized.
  */
 static struct edid gm12u320_edid = {
 	.header		= { 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00 },
@@ -60,20 +60,20 @@ static struct edid gm12u320_edid = {
 		.data.other_data.data.range.max_hfreq_khz = 32,
 		.data.other_data.data.range.pixel_clock_mhz = 4, /* 40 MHz */
 		.data.other_data.data.range.flags = 0,
-		.data.other_data.data.range.formula.cvt =
-			{ 0xa0, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20 },
+		.data.other_data.data.range.formula.cvt = {
+			0xa0, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20 },
 	}, {
 		.pixel_clock = 0,
 		.data.other_data.type = 0xfc, /* Model string */
-		.data.other_data.data.str.str =
-			{ 'C', '1', '2', '0', 'P', 'r', 'o', 'j', 'e', 'c',
-			  't', 'o', 'r' },
+		.data.other_data.data.str.str = {
+			'C', '1', '2', '0', 'P', 'r', 'o', 'j', 'e', 'c',
+			't', 'o', 'r' },
 	}, {
 		.pixel_clock = 0,
 		.data.other_data.type = 0xfe, /* Unspecified text / padding */
-		.data.other_data.data.str.str =
-			{ '\n', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
-			  ' ', ' ',  ' ' },
+		.data.other_data.data.str.str = {
+			'\n', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+			' ', ' ',  ' ' },
 	} },
 	.checksum = 0x40,
 };
@@ -97,12 +97,13 @@ static struct drm_encoder*
 gm12u320_best_single_encoder(struct drm_connector *connector)
 {
 	int enc_id = connector->encoder_ids[0];
+
 	return drm_encoder_find(connector->dev, enc_id);
 }
 
 static int gm12u320_connector_set_property(struct drm_connector *connector,
-				      struct drm_property *property,
-				      uint64_t val)
+					   struct drm_property *property,
+					   uint64_t val)
 {
 	return 0;
 }
@@ -114,12 +115,12 @@ static void gm12u320_connector_destroy(struct drm_connector *connector)
 	kfree(connector);
 }
 
-static struct drm_connector_helper_funcs gm12u320_connector_helper_funcs = {
+static const struct drm_connector_helper_funcs gm12u320_helper_funcs = {
 	.get_modes = gm12u320_get_modes,
 	.best_encoder = gm12u320_best_single_encoder,
 };
 
-static struct drm_connector_funcs gm12u320_connector_funcs = {
+static const struct drm_connector_funcs gm12u320_connector_funcs = {
 	.dpms = drm_helper_connector_dpms,
 	.detect = gm12u320_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
@@ -138,7 +139,7 @@ int gm12u320_connector_init(struct drm_device *dev,
 
 	drm_connector_init(dev, connector, &gm12u320_connector_funcs,
 			   DRM_MODE_CONNECTOR_Unknown);
-	drm_connector_helper_add(connector, &gm12u320_connector_helper_funcs);
+	drm_connector_helper_add(connector, &gm12u320_helper_funcs);
 
 	drm_connector_register(connector);
 	drm_mode_connector_attach_encoder(connector, encoder);

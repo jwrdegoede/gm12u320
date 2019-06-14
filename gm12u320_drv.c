@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License v2. See the file COPYING in the main directory of this archive for
@@ -65,7 +65,7 @@ static struct drm_driver driver = {
 };
 
 static int gm12u320_usb_probe(struct usb_interface *interface,
-			 const struct usb_device_id *id)
+			      const struct usb_device_id *id)
 {
 	struct usb_device *udev = interface_to_usbdev(interface);
 	struct drm_device *dev;
@@ -105,7 +105,7 @@ static void gm12u320_usb_disconnect(struct usb_interface *interface)
 		return;
 
 	drm_kms_helper_poll_disable(dev);
-	drm_connector_unplug_all(dev);
+	drm_connector_unregister_all(dev);
 	gm12u320_fbdev_unplug(dev);
 	gm12u320_stop_fb_update(dev);
 	drm_unplug_dev(dev);

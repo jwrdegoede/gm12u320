@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * Based in parts on the udl code. Based in parts on the gm12u320 fb driver:
  * Copyright (C) 2013 Viacheslav Nurmekhamitov <slavrn@yandex.ru>
@@ -28,13 +28,6 @@ static void gm12u320_encoder_disable(struct drm_encoder *encoder)
 {
 }
 
-static bool gm12u320_mode_fixup(struct drm_encoder *encoder,
-			   const struct drm_display_mode *mode,
-			   struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
 static void gm12u320_encoder_prepare(struct drm_encoder *encoder)
 {
 }
@@ -56,7 +49,6 @@ gm12u320_encoder_dpms(struct drm_encoder *encoder, int mode)
 
 static const struct drm_encoder_helper_funcs gm12u320_helper_funcs = {
 	.dpms = gm12u320_encoder_dpms,
-	.mode_fixup = gm12u320_mode_fixup,
 	.prepare = gm12u320_encoder_prepare,
 	.mode_set = gm12u320_encoder_mode_set,
 	.commit = gm12u320_encoder_commit,
@@ -76,7 +68,7 @@ struct drm_encoder *gm12u320_encoder_init(struct drm_device *dev)
 		return NULL;
 
 	drm_encoder_init(dev, encoder, &gm12u320_enc_funcs,
-			 DRM_MODE_ENCODER_TMDS);
+			 DRM_MODE_ENCODER_TMDS, NULL);
 	drm_encoder_helper_add(encoder, &gm12u320_helper_funcs);
 	encoder->possible_crtcs = 1;
 	return encoder;

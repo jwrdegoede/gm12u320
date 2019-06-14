@@ -29,8 +29,8 @@ struct gm12u320_drm_dmabuf_attachment {
 };
 
 static int gm12u320_attach_dma_buf(struct dma_buf *dmabuf,
-			      struct device *dev,
-			      struct dma_buf_attachment *attach)
+				   struct device *dev,
+				   struct dma_buf_attachment *attach)
 {
 	struct gm12u320_drm_dmabuf_attachment *gm12u320_attach;
 
@@ -48,7 +48,7 @@ static int gm12u320_attach_dma_buf(struct dma_buf *dmabuf,
 }
 
 static void gm12u320_detach_dma_buf(struct dma_buf *dmabuf,
-			       struct dma_buf_attachment *attach)
+				    struct dma_buf_attachment *attach)
 {
 	struct gm12u320_drm_dmabuf_attachment *gm12u320_attach = attach->priv;
 	struct sg_table *sgt;
@@ -71,7 +71,7 @@ static void gm12u320_detach_dma_buf(struct dma_buf *dmabuf,
 }
 
 static struct sg_table *gm12u320_map_dma_buf(struct dma_buf_attachment *attach,
-					enum dma_data_direction dir)
+					     enum dma_data_direction dir)
 {
 	struct gm12u320_drm_dmabuf_attachment *gm12u320_attach = attach->priv;
 	struct gm12u320_gem_object *obj = to_gm12u320_bo(attach->dmabuf->priv);
@@ -142,15 +142,16 @@ err_unlock:
 }
 
 static void gm12u320_unmap_dma_buf(struct dma_buf_attachment *attach,
-			      struct sg_table *sgt,
-			      enum dma_data_direction dir)
+				   struct sg_table *sgt,
+				   enum dma_data_direction dir)
 {
 	/* Nothing to do. */
 	DRM_DEBUG_PRIME("[DEV:%s] size:%zd dir:%d\n", dev_name(attach->dev),
 			attach->dmabuf->size, dir);
 }
 
-static void *gm12u320_dmabuf_kmap(struct dma_buf *dma_buf, unsigned long page_num)
+static void *gm12u320_dmabuf_kmap(struct dma_buf *dma_buf,
+				  unsigned long page_num)
 {
 	/* TODO */
 
@@ -158,7 +159,7 @@ static void *gm12u320_dmabuf_kmap(struct dma_buf *dma_buf, unsigned long page_nu
 }
 
 static void *gm12u320_dmabuf_kmap_atomic(struct dma_buf *dma_buf,
-				    unsigned long page_num)
+					 unsigned long page_num)
 {
 	/* TODO */
 
@@ -166,20 +167,20 @@ static void *gm12u320_dmabuf_kmap_atomic(struct dma_buf *dma_buf,
 }
 
 static void gm12u320_dmabuf_kunmap(struct dma_buf *dma_buf,
-			      unsigned long page_num, void *addr)
+				   unsigned long page_num, void *addr)
 {
 	/* TODO */
 }
 
 static void gm12u320_dmabuf_kunmap_atomic(struct dma_buf *dma_buf,
-				     unsigned long page_num,
-				     void *addr)
+					  unsigned long page_num,
+					  void *addr)
 {
 	/* TODO */
 }
 
 static int gm12u320_dmabuf_mmap(struct dma_buf *dma_buf,
-			   struct vm_area_struct *vma)
+				struct vm_area_struct *vma)
 {
 	/* TODO */
 
@@ -213,9 +214,8 @@ struct dma_buf *gm12u320_gem_prime_export(struct drm_device *dev,
 }
 
 static int gm12u320_prime_create(struct drm_device *dev,
-			    size_t size,
-			    struct sg_table *sg,
-			    struct gm12u320_gem_object **obj_p)
+				 size_t size, struct sg_table *sg,
+				 struct gm12u320_gem_object **obj_p)
 {
 	struct gm12u320_gem_object *obj;
 	int npages;
@@ -241,7 +241,7 @@ static int gm12u320_prime_create(struct drm_device *dev,
 }
 
 struct drm_gem_object *gm12u320_gem_prime_import(struct drm_device *dev,
-				struct dma_buf *dma_buf)
+						 struct dma_buf *dma_buf)
 {
 	struct dma_buf_attachment *attach;
 	struct sg_table *sg;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * Based in parts on the udl code. Based in parts on the gm12u320 fb driver:
  * Copyright (C) 2013 Viacheslav Nurmekhamitov <slavrn@yandex.ru>
@@ -22,18 +22,11 @@ static void gm12u320_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
 }
 
-static bool gm12u320_crtc_mode_fixup(struct drm_crtc *crtc,
-				  const struct drm_display_mode *mode,
-				  struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
 static int gm12u320_crtc_mode_set(struct drm_crtc *crtc,
-			       struct drm_display_mode *mode,
-			       struct drm_display_mode *adjusted_mode,
-			       int x, int y,
-			       struct drm_framebuffer *old_fb)
+				  struct drm_display_mode *mode,
+				  struct drm_display_mode *adjusted_mode,
+				  int x, int y,
+				  struct drm_framebuffer *old_fb)
 
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(crtc->primary->fb);
@@ -54,9 +47,9 @@ static void gm12u320_crtc_destroy(struct drm_crtc *crtc)
 }
 
 static int gm12u320_crtc_page_flip(struct drm_crtc *crtc,
-			      struct drm_framebuffer *drm_fb,
-			      struct drm_pending_vblank_event *event,
-			      uint32_t page_flip_flags)
+				   struct drm_framebuffer *drm_fb,
+				   struct drm_pending_vblank_event *event,
+				   uint32_t page_flip_flags)
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(drm_fb);
 	struct drm_device *dev = crtc->dev;
@@ -83,9 +76,8 @@ static void gm12u320_crtc_commit(struct drm_crtc *crtc)
 	gm12u320_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
 }
 
-static struct drm_crtc_helper_funcs gm12u320_helper_funcs = {
+static const struct drm_crtc_helper_funcs gm12u320_helper_funcs = {
 	.dpms = gm12u320_crtc_dpms,
-	.mode_fixup = gm12u320_crtc_mode_fixup,
 	.mode_set = gm12u320_crtc_mode_set,
 	.prepare = gm12u320_crtc_prepare,
 	.commit = gm12u320_crtc_commit,
@@ -102,7 +94,8 @@ static int gm12u320_crtc_init(struct drm_device *dev)
 {
 	struct drm_crtc *crtc;
 
-	crtc = kzalloc(sizeof(struct drm_crtc) + sizeof(struct drm_connector *), GFP_KERNEL);
+	crtc = kzalloc(sizeof(struct drm_crtc) +
+		       sizeof(struct drm_connector *), GFP_KERNEL);
 	if (crtc == NULL)
 		return -ENOMEM;
 
@@ -120,6 +113,7 @@ static const struct drm_mode_config_funcs gm12u320_mode_funcs = {
 int gm12u320_modeset_init(struct drm_device *dev)
 {
 	struct drm_encoder *encoder;
+
 	drm_mode_config_init(dev);
 
 	dev->mode_config.min_width = GM12U320_USER_WIDTH;

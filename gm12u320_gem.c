@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License v2. See the file COPYING in the main directory of this archive for
@@ -11,8 +11,8 @@
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 
-struct gm12u320_gem_object *gm12u320_gem_alloc_object(struct drm_device *dev,
-					    size_t size)
+struct gm12u320_gem_object *
+gm12u320_gem_alloc_object(struct drm_device *dev, size_t size)
 {
 	struct gm12u320_gem_object *obj;
 
@@ -29,11 +29,8 @@ struct gm12u320_gem_object *gm12u320_gem_alloc_object(struct drm_device *dev,
 	return obj;
 }
 
-static int
-gm12u320_gem_create(struct drm_file *file,
-	       struct drm_device *dev,
-	       uint64_t size,
-	       uint32_t *handle_p)
+static int gm12u320_gem_create(struct drm_file *file, struct drm_device *dev,
+			       uint64_t size, uint32_t *handle_p)
 {
 	struct gm12u320_gem_object *obj;
 	int ret;
@@ -52,7 +49,7 @@ gm12u320_gem_create(struct drm_file *file,
 		return ret;
 	}
 
-	drm_gem_object_unreference(&obj->base);
+	drm_gem_object_unreference_unlocked(&obj->base);
 	*handle_p = handle;
 	return 0;
 }
@@ -74,9 +71,8 @@ static void update_vm_cache_attr(struct gm12u320_gem_object *obj,
 	}
 }
 
-int gm12u320_dumb_create(struct drm_file *file,
-		    struct drm_device *dev,
-		    struct drm_mode_create_dumb *args)
+int gm12u320_dumb_create(struct drm_file *file, struct drm_device *dev,
+			 struct drm_mode_create_dumb *args)
 {
 	args->pitch = args->width * DIV_ROUND_UP(args->bpp, 8);
 	args->size = args->pitch * args->height;
@@ -166,7 +162,7 @@ int gm12u320_gem_vmap(struct gm12u320_gem_object *obj)
 			return -ENOMEM;
 		return 0;
 	}
-		
+
 	ret = gm12u320_gem_get_pages(obj);
 	if (ret)
 		return ret;
@@ -210,14 +206,14 @@ void gm12u320_gem_free_object(struct drm_gem_object *gem_obj)
 /* the dumb interface doesn't work with the GEM straight MMAP
    interface, it expects to do MMAP on the drm fd, like normal */
 int gm12u320_gem_mmap(struct drm_file *file, struct drm_device *dev,
-		 uint32_t handle, uint64_t *offset)
+		      uint32_t handle, uint64_t *offset)
 {
 	struct gm12u320_gem_object *gobj;
 	struct drm_gem_object *obj;
 	int ret = 0;
 
 	mutex_lock(&dev->struct_mutex);
-	obj = drm_gem_object_lookup(dev, file, handle);
+	obj = drm_gem_object_lookup(file, handle);
 	if (obj == NULL) {
 		ret = -ENOENT;
 		goto unlock;

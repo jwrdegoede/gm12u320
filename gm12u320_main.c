@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * Based in parts on the udl code. Based in parts on the gm12u320 fb driver:
  * Copyright (C) 2013 Viacheslav Nurmekhamitov <slavrn@yandex.ru>
@@ -27,13 +27,13 @@ MODULE_PARM_DESC(eco_mode, "Turn on Eco mode (less bright, more silent)");
 #define DATA_BLOCK_HEADER_SIZE		84
 #define DATA_BLOCK_CONTENT_SIZE		64512
 #define DATA_BLOCK_FOOTER_SIZE		20
-#define DATA_BLOCK_SIZE			DATA_BLOCK_HEADER_SIZE + \
-					DATA_BLOCK_CONTENT_SIZE + \
-					DATA_BLOCK_FOOTER_SIZE
+#define DATA_BLOCK_SIZE			(DATA_BLOCK_HEADER_SIZE + \
+					 DATA_BLOCK_CONTENT_SIZE + \
+					 DATA_BLOCK_FOOTER_SIZE)
 #define DATA_LAST_BLOCK_CONTENT_SIZE	4032
-#define DATA_LAST_BLOCK_SIZE		DATA_BLOCK_HEADER_SIZE + \
-					DATA_LAST_BLOCK_CONTENT_SIZE + \
-					DATA_BLOCK_FOOTER_SIZE
+#define DATA_LAST_BLOCK_SIZE		(DATA_BLOCK_HEADER_SIZE + \
+					 DATA_LAST_BLOCK_CONTENT_SIZE + \
+					 DATA_BLOCK_FOOTER_SIZE)
 
 #define CMD_SIZE			31
 #define READ_STATUS_SIZE		13
@@ -225,8 +225,7 @@ static void gm12u320_copy_fb_to_blocks(struct gm12u320_framebuffer *fb,
 
 	if (fb->obj->base.import_attach) {
 		ret = dma_buf_begin_cpu_access(
-			fb->obj->base.import_attach->dmabuf, 0,
-			fb->obj->base.size, DMA_FROM_DEVICE);
+			fb->obj->base.import_attach->dmabuf, DMA_FROM_DEVICE);
 		if (ret) {
 			DRM_ERROR("dma_buf_begin_cpu_access err: %d\n", ret);
 			return;
@@ -276,18 +275,21 @@ static void gm12u320_copy_fb_to_blocks(struct gm12u320_framebuffer *fb,
 	}
 
 end_cpu_access:
-	if (fb->obj->base.import_attach)
-		dma_buf_end_cpu_access(fb->obj->base.import_attach->dmabuf, 0,
-				       fb->obj->base.size, DMA_FROM_DEVICE);
+	if (fb->obj->base.import_attach) {
+		ret = dma_buf_end_cpu_access(
+			fb->obj->base.import_attach->dmabuf, DMA_FROM_DEVICE);
+		if (ret)
+			DRM_ERROR("dma_buf_end_cpu_access err: %d\n", ret);
+	}
 }
 
 static int gm12u320_fb_update_ready(struct gm12u320_device *gm12u320)
 {
 	int ret;
 
-	spin_lock(&gm12u320->fb_update.lock);
+	mutex_lock(&gm12u320->fb_update.lock);
 	ret = !gm12u320->fb_update.run || gm12u320->fb_update.fb != NULL;
-	spin_unlock(&gm12u320->fb_update.lock);
+	mutex_unlock(&gm12u320->fb_update.lock);
 
 	return ret;
 }
@@ -303,14 +305,14 @@ static void gm12u320_fb_update_work(struct work_struct *work)
 	int ret = 0;
 
 	while (gm12u320->fb_update.run) {
-		spin_lock(&gm12u320->fb_update.lock);
+		mutex_lock(&gm12u320->fb_update.lock);
 		fb = gm12u320->fb_update.fb;
 		x1 = gm12u320->fb_update.x1;
 		x2 = gm12u320->fb_update.x2;
 		y1 = gm12u320->fb_update.y1;
 		y2 = gm12u320->fb_update.y2;
 		gm12u320->fb_update.fb = NULL;
-		spin_unlock(&gm12u320->fb_update.lock);
+		mutex_unlock(&gm12u320->fb_update.lock);
 
 		if (fb) {
 			gm12u320_copy_fb_to_blocks(fb, x1, x2, y1, y2);
@@ -392,9 +394,9 @@ void gm12u320_start_fb_update(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 
-	spin_lock(&gm12u320->fb_update.lock);
+	mutex_lock(&gm12u320->fb_update.lock);
 	gm12u320->fb_update.run = true;
-	spin_unlock(&gm12u320->fb_update.lock);
+	mutex_unlock(&gm12u320->fb_update.lock);
 
 	queue_work(gm12u320->fb_update.workq, &gm12u320->fb_update.work);
 }
@@ -403,24 +405,24 @@ void gm12u320_stop_fb_update(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 
-	spin_lock(&gm12u320->fb_update.lock);
+	mutex_lock(&gm12u320->fb_update.lock);
 	gm12u320->fb_update.run = false;
-	spin_unlock(&gm12u320->fb_update.lock);
+	mutex_unlock(&gm12u320->fb_update.lock);
 
 	wake_up(&gm12u320->fb_update.waitq);
 	cancel_work_sync(&gm12u320->fb_update.work);
 
-	spin_lock(&gm12u320->fb_update.lock);
+	mutex_lock(&gm12u320->fb_update.lock);
 	if (gm12u320->fb_update.fb) {
 		drm_framebuffer_unreference(&gm12u320->fb_update.fb->base);
 		gm12u320->fb_update.fb = NULL;
 	}
-	spin_unlock(&gm12u320->fb_update.lock);
+	mutex_unlock(&gm12u320->fb_update.lock);
 }
 
 int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 {
-	struct usb_device *udev = (void*)flags;
+	struct usb_device *udev = (void *)flags;
 	struct gm12u320_device *gm12u320;
 	int ret = -ENOMEM;
 
@@ -434,7 +436,7 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	dev->dev_private = gm12u320;
 
 	INIT_WORK(&gm12u320->fb_update.work, gm12u320_fb_update_work);
-	spin_lock_init(&gm12u320->fb_update.lock);
+	mutex_init(&gm12u320->fb_update.lock);
 	init_waitqueue_head(&gm12u320->fb_update.waitq);
 
 	ret = gm12u320_set_ecomode(dev);
@@ -449,16 +451,16 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 
 	ret = gm12u320_usb_alloc(gm12u320);
 	if (ret)
-		goto err;
+		goto err_wq;
 
 	DRM_DEBUG("\n");
 	ret = gm12u320_modeset_init(dev);
 	if (ret)
-		goto err;
+		goto err_usb;
 
 	ret = gm12u320_fbdev_init(dev);
 	if (ret)
-		goto err;
+		goto err_modeset;
 
 	ret = drm_vblank_init(dev, 1);
 	if (ret)
@@ -467,10 +469,16 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	gm12u320_start_fb_update(dev);
 
 	return 0;
+
 err_fb:
 	gm12u320_fbdev_cleanup(dev);
-err:
+err_modeset:
+	gm12u320_modeset_cleanup(dev);
+err_usb:
 	gm12u320_usb_free(gm12u320);
+err_wq:
+	destroy_workqueue(gm12u320->fb_update.workq);
+err:
 	kfree(gm12u320);
 	DRM_ERROR("%d\n", ret);
 	return ret;

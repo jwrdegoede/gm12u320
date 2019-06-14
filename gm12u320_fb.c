@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Red Hat Inc.
+ * Copyright (C) 2012-2016 Red Hat Inc.
  *
  * Based in parts on the udl code. Based in parts on the gm12u320 fb driver:
  * Copyright (C) 2013 Viacheslav Nurmekhamitov <slavrn@yandex.ru>
@@ -25,7 +25,6 @@
 struct gm12u320_fbdev {
 	struct drm_fb_helper helper;
 	struct gm12u320_framebuffer fb;
-	struct list_head fbdev_list;
 };
 
 void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
@@ -35,9 +34,8 @@ void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 	struct gm12u320_framebuffer *old_fb = NULL;
 	bool wakeup = false;
-	unsigned long flags;
 
-	spin_lock_irqsave(&gm12u320->fb_update.lock, flags);
+	mutex_lock(&gm12u320->fb_update.lock);
 
 	if (gm12u320->fb_update.fb != fb) {
 		gm12u320->fb_update.x1 = x1;
@@ -55,43 +53,13 @@ void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
 		gm12u320->fb_update.y2 = max(gm12u320->fb_update.y2, y2);
 	}
 
-	spin_unlock_irqrestore(&gm12u320->fb_update.lock, flags);
+	mutex_unlock(&gm12u320->fb_update.lock);
 
 	if (wakeup)
 		wake_up(&gm12u320->fb_update.waitq);
 
 	if (old_fb)
 		drm_framebuffer_unreference(&old_fb->base);
-}
-
-static void gm12u320_fb_fillrect(struct fb_info *info,
-	const struct fb_fillrect *rect)
-{
-	struct gm12u320_fbdev *fbdev = info->par;
-
-	sys_fillrect(info, rect);
-	gm12u320_fb_mark_dirty(&fbdev->fb, rect->dx, rect->dx + rect->width,
-			       rect->dy, rect->dy + rect->height);
-}
-
-static void gm12u320_fb_copyarea(struct fb_info *info,
-	const struct fb_copyarea *rect)
-{
-	struct gm12u320_fbdev *fbdev = info->par;
-
-	sys_copyarea(info, rect);
-	gm12u320_fb_mark_dirty(&fbdev->fb, rect->dx, rect->dx + rect->width,
-			       rect->dy, rect->dy + rect->height);
-}
-
-static void gm12u320_fb_imageblit(struct fb_info *info,
-	const struct fb_image *rect)
-{
-	struct gm12u320_fbdev *fbdev = info->par;
-
-	sys_imageblit(info, rect);
-	gm12u320_fb_mark_dirty(&fbdev->fb, rect->dx, rect->dx + rect->width,
-			       rect->dy, rect->dy + rect->height);
 }
 
 static int gm12u320_fb_open(struct fb_info *info, int user)
@@ -110,9 +78,9 @@ static struct fb_ops gm12u320_fb_ops = {
 	.owner = THIS_MODULE,
 	.fb_check_var = drm_fb_helper_check_var,
 	.fb_set_par = drm_fb_helper_set_par,
-	.fb_fillrect = gm12u320_fb_fillrect,
-	.fb_copyarea = gm12u320_fb_copyarea,
-	.fb_imageblit = gm12u320_fb_imageblit,
+	.fb_fillrect = drm_fb_helper_sys_fillrect,
+	.fb_copyarea = drm_fb_helper_sys_copyarea,
+	.fb_imageblit = drm_fb_helper_sys_imageblit,
 	.fb_pan_display = drm_fb_helper_pan_display,
 	.fb_blank = drm_fb_helper_blank,
 	.fb_setcmap = drm_fb_helper_setcmap,
@@ -121,40 +89,16 @@ static struct fb_ops gm12u320_fb_ops = {
 	.fb_open = gm12u320_fb_open,
 };
 
-static void gm12u320_fb_defio_cb(struct fb_info *info, struct list_head *pl)
-{
-	struct gm12u320_fbdev *fbdev = info->par;
-	unsigned long start, end, min, max;
-	struct page *page;
-	int y1, y2;
-
-	min = ULONG_MAX;
-	max = 0;
-	list_for_each_entry(page, pl, lru) {
-		start = page->index << PAGE_SHIFT;
-		end = start + PAGE_SIZE - 1;
-		min = min(min, start);
-		max = max(max, end);
-	}
-
-	if (min > max)
-		return;
-
-	y1 = min / info->fix.line_length;
-	y2 = (max / info->fix.line_length) + 1;
-	gm12u320_fb_mark_dirty(&fbdev->fb, 0, GM12U320_USER_WIDTH, y1, y2);
-}
-
 static struct fb_deferred_io gm12u320_fb_defio = {
-	.delay = HZ / 50,
-	.deferred_io = gm12u320_fb_defio_cb,
+	.delay = HZ / 30,
+	.deferred_io = drm_fb_helper_deferred_io,
 };
 
 static int gm12u320_user_framebuffer_dirty(struct drm_framebuffer *drm_fb,
-				      struct drm_file *file,
-				      unsigned flags, unsigned color,
-				      struct drm_clip_rect *clips,
-				      unsigned num_clips)
+					   struct drm_file *file,
+					   unsigned flags, unsigned color,
+					   struct drm_clip_rect *clips,
+					   unsigned num_clips)
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(drm_fb);
 	int x1, x2, y1, y2;
@@ -198,9 +142,9 @@ static const struct drm_framebuffer_funcs gm12u320fb_funcs = {
 
 static int
 gm12u320_framebuffer_init(struct drm_device *dev,
-		     struct gm12u320_framebuffer *fb,
-		     struct drm_mode_fb_cmd2 *mode_cmd,
-		     struct gm12u320_gem_object *obj)
+			  struct gm12u320_framebuffer *fb,
+			  const struct drm_mode_fb_cmd2 *mode_cmd,
+			  struct gm12u320_gem_object *obj)
 {
 	int ret;
 
@@ -211,13 +155,12 @@ gm12u320_framebuffer_init(struct drm_device *dev,
 }
 
 static int gm12u320fb_create(struct drm_fb_helper *helper,
-			struct drm_fb_helper_surface_size *sizes)
+			     struct drm_fb_helper_surface_size *sizes)
 {
 	struct gm12u320_fbdev *fbdev =
 		container_of(helper, struct gm12u320_fbdev, helper);
 	struct drm_device *dev = fbdev->helper.dev;
 	struct fb_info *info;
-	struct device *device = dev->dev;
 	struct drm_framebuffer *drm_fb;
 	struct drm_mode_fb_cmd2 mode_cmd;
 	struct gm12u320_gem_object *obj;
@@ -247,21 +190,20 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 		goto out_gfree;
 	}
 
-	info = framebuffer_alloc(0, device);
-	if (!info) {
-		ret = -ENOMEM;
+	info = drm_fb_helper_alloc_fbi(helper);
+	if (IS_ERR(info)) {
+		ret = PTR_ERR(info);
 		goto out_gfree;
 	}
 	info->par = fbdev;
 
 	ret = gm12u320_framebuffer_init(dev, &fbdev->fb, &mode_cmd, obj);
 	if (ret)
-		goto out_gfree;
+		goto out_destroy_fbi;
 
 	drm_fb = &fbdev->fb.base;
 
 	fbdev->helper.fb = drm_fb;
-	fbdev->helper.fbdev = info;
 
 	strcpy(info->fix.id, "gm12u320drmfb");
 
@@ -273,22 +215,20 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 	info->fbops = &gm12u320_fb_ops;
 	info->fbdefio = &gm12u320_fb_defio;
 	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->depth);
-	drm_fb_helper_fill_var(info, &fbdev->helper, sizes->fb_width, sizes->fb_height);
+	drm_fb_helper_fill_var(info, &fbdev->helper,
+			       sizes->fb_width, sizes->fb_height);
 	fb_deferred_io_init(info);
-
-	ret = fb_alloc_cmap(&info->cmap, 256, 0);
-	if (ret) {
-		ret = -ENOMEM;
-		goto out_gfree;
-	}
 
 	DRM_DEBUG_KMS("allocated %dx%d vmal %p\n",
 		      drm_fb->width, drm_fb->height,
 		      fbdev->fb.obj->vmapping);
 
 	return ret;
+
+out_destroy_fbi:
+	drm_fb_helper_release_fbi(helper);
 out_gfree:
-	drm_gem_object_unreference(&fbdev->fb.obj->base);
+	drm_gem_object_unreference_unlocked(&fbdev->fb.obj->base);
 out:
 	return ret;
 }
@@ -298,17 +238,10 @@ static const struct drm_fb_helper_funcs gm12u320_fb_helper_funcs = {
 };
 
 static void gm12u320_fbdev_destroy(struct drm_device *dev,
-			      struct gm12u320_fbdev *fbdev)
+				   struct gm12u320_fbdev *fbdev)
 {
-	struct fb_info *info;
-	if (fbdev->helper.fbdev) {
-		info = fbdev->helper.fbdev;
-		fb_deferred_io_cleanup(info);
-		unregister_framebuffer(info);
-		if (info->cmap.len)
-			fb_dealloc_cmap(&info->cmap);
-		framebuffer_release(info);
-	}
+	drm_fb_helper_unregister_fbi(&fbdev->helper);
+	drm_fb_helper_release_fbi(&fbdev->helper);
 	drm_fb_helper_fini(&fbdev->helper);
 	drm_framebuffer_unregister_private(&fbdev->fb.base);
 	drm_framebuffer_cleanup(&fbdev->fb.base);
@@ -356,6 +289,7 @@ free:
 void gm12u320_fbdev_cleanup(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
+
 	if (!gm12u320->fbdev)
 		return;
 
@@ -367,30 +301,24 @@ void gm12u320_fbdev_cleanup(struct drm_device *dev)
 void gm12u320_fbdev_unplug(struct drm_device *dev)
 {
 	struct gm12u320_device *gm12u320 = dev->dev_private;
-	struct gm12u320_fbdev *fbdev;
 
 	if (!gm12u320->fbdev)
 		return;
 
-	fbdev = gm12u320->fbdev;
-	if (fbdev->helper.fbdev) {
-		struct fb_info *info;
-		info = fbdev->helper.fbdev;
-		unlink_framebuffer(info);
-	}
+	drm_fb_helper_unlink_fbi(&gm12u320->fbdev->helper);
 }
 
 struct drm_framebuffer *
 gm12u320_fb_user_fb_create(struct drm_device *dev,
-		   struct drm_file *file,
-		   struct drm_mode_fb_cmd2 *mode_cmd)
+			   struct drm_file *file,
+			   const struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	struct drm_gem_object *obj;
 	struct gm12u320_framebuffer *fb;
 	int ret;
 	uint32_t size;
 
-	obj = drm_gem_object_lookup(dev, file, mode_cmd->handles[0]);
+	obj = drm_gem_object_lookup(file, mode_cmd->handles[0]);
 	if (obj == NULL)
 		return ERR_PTR(-ENOENT);
 
@@ -398,7 +326,9 @@ gm12u320_fb_user_fb_create(struct drm_device *dev,
 	size = ALIGN(size, PAGE_SIZE);
 
 	if (size > obj->size) {
-		DRM_ERROR("object size not sufficient for fb %d %zu %d %d\n", size, obj->size, mode_cmd->pitches[0], mode_cmd->height);
+		DRM_ERROR("object size not sufficient for fb %d %zu %d %d\n",
+			  size, obj->size, mode_cmd->pitches[0],
+			  mode_cmd->height);
 		return ERR_PTR(-ENOMEM);
 	}
 
