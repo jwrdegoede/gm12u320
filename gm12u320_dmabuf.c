@@ -76,6 +76,7 @@ static struct sg_table *gm12u320_map_dma_buf(struct dma_buf_attachment *attach,
 	struct gm12u320_drm_dmabuf_attachment *gm12u320_attach = attach->priv;
 	struct gm12u320_gem_object *obj = to_gm12u320_bo(attach->dmabuf->priv);
 	struct drm_device *dev = obj->base.dev;
+	struct gm12u320_device *gm12u320 = dev->dev_private;
 	struct scatterlist *rd, *wr;
 	struct sg_table *sgt = NULL;
 	unsigned int i;
@@ -112,7 +113,7 @@ static struct sg_table *gm12u320_map_dma_buf(struct dma_buf_attachment *attach,
 		return ERR_PTR(-ENOMEM);
 	}
 
-	mutex_lock(&dev->struct_mutex);
+	mutex_lock(&gm12u320->gem_lock);
 
 	rd = obj->sg->sgl;
 	wr = sgt->sgl;
@@ -137,7 +138,7 @@ static struct sg_table *gm12u320_map_dma_buf(struct dma_buf_attachment *attach,
 	attach->priv = gm12u320_attach;
 
 err_unlock:
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&gm12u320->gem_lock);
 	return sgt;
 }
 

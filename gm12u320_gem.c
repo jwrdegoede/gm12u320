@@ -208,11 +208,12 @@ void gm12u320_gem_free_object(struct drm_gem_object *gem_obj)
 int gm12u320_gem_mmap(struct drm_file *file, struct drm_device *dev,
 		      uint32_t handle, uint64_t *offset)
 {
+	struct gm12u320_device *gm12u320 = dev->dev_private;
 	struct gm12u320_gem_object *gobj;
 	struct drm_gem_object *obj;
 	int ret = 0;
 
-	mutex_lock(&dev->struct_mutex);
+	mutex_lock(&gm12u320->gem_lock);
 	obj = drm_gem_object_lookup(file, handle);
 	if (obj == NULL) {
 		ret = -ENOENT;
@@ -232,6 +233,6 @@ int gm12u320_gem_mmap(struct drm_file *file, struct drm_device *dev,
 out:
 	drm_gem_object_unreference(&gobj->base);
 unlock:
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&gm12u320->gem_lock);
 	return ret;
 }

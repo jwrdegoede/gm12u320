@@ -435,6 +435,7 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	gm12u320->ddev = dev;
 	dev->dev_private = gm12u320;
 
+	mutex_init(&gm12u320->gem_lock);
 	INIT_WORK(&gm12u320->fb_update.work, gm12u320_fb_update_work);
 	mutex_init(&gm12u320->fb_update.lock);
 	init_waitqueue_head(&gm12u320->fb_update.waitq);

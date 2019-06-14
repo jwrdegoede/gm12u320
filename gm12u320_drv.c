@@ -35,7 +35,7 @@ static struct drm_driver driver = {
 	.unload = gm12u320_driver_unload,
 
 	/* gem hooks */
-	.gem_free_object = gm12u320_gem_free_object,
+	.gem_free_object_unlocked = gm12u320_gem_free_object,
 	.gem_vm_ops = &gm12u320_gem_vm_ops,
 
 	.dumb_create = gm12u320_dumb_create,

@@ -49,6 +49,7 @@ struct gm12u320_device {
 	struct usb_device *udev;
 	struct drm_device *ddev;
 	struct gm12u320_fbdev *fbdev;
+	struct mutex gem_lock;
 	unsigned char *cmd_buf;
 	unsigned char *data_buf[GM12U320_BLOCK_COUNT];
 	struct {
