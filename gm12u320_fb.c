@@ -23,7 +23,7 @@
 #include <drm/drm_fb_helper.h>
 
 struct gm12u320_fbdev {
-	struct drm_fb_helper helper;
+	struct drm_fb_helper helper; /* must be first */
 	struct gm12u320_framebuffer fb;
 };
 
@@ -191,7 +191,6 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 		ret = PTR_ERR(info);
 		goto out_gfree;
 	}
-	info->par = fbdev;
 
 	ret = gm12u320_framebuffer_init(dev, &fbdev->fb, &mode_cmd, obj);
 	if (ret)
@@ -201,16 +200,12 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 
 	fbdev->helper.fb = drm_fb;
 
-	strcpy(info->fix.id, "gm12u320drmfb");
-
 	info->screen_base = fbdev->fb.obj->vmapping;
 	info->fix.smem_len = size;
 	info->fix.smem_start = (unsigned long)fbdev->fb.obj->vmapping;
 
 	info->fbops = &gm12u320_fb_ops;
-	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->format->depth);
-	drm_fb_helper_fill_var(info, &fbdev->helper,
-			       sizes->fb_width, sizes->fb_height);
+	drm_fb_helper_fill_info(info, &fbdev->helper, sizes);
 #ifdef CONFIG_DRM_FBDEV_EMULATION
 	info->fbdefio = &gm12u320_fb_defio;
 	fb_deferred_io_init(info);
