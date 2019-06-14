@@ -207,7 +207,6 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 	info->fix.smem_len = size;
 	info->fix.smem_start = (unsigned long)fbdev->fb.obj->vmapping;
 
-	info->flags = FBINFO_DEFAULT | FBINFO_CAN_FORCE_OUTPUT;
 	info->fbops = &gm12u320_fb_ops;
 	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->format->depth);
 	drm_fb_helper_fill_var(info, &fbdev->helper,
