@@ -317,7 +317,7 @@ static void gm12u320_fb_update_work(struct work_struct *work)
 
 		if (fb) {
 			gm12u320_copy_fb_to_blocks(fb, x1, x2, y1, y2);
-			drm_framebuffer_unreference(&fb->base);
+			drm_framebuffer_put(&fb->base);
 		}
 
 		for (block = 0; block < GM12U320_BLOCK_COUNT; block++) {
@@ -415,7 +415,7 @@ void gm12u320_stop_fb_update(struct drm_device *dev)
 
 	mutex_lock(&gm12u320->fb_update.lock);
 	if (gm12u320->fb_update.fb) {
-		drm_framebuffer_unreference(&gm12u320->fb_update.fb->base);
+		drm_framebuffer_put(&gm12u320->fb_update.fb->base);
 		gm12u320->fb_update.fb = NULL;
 	}
 	mutex_unlock(&gm12u320->fb_update.lock);
