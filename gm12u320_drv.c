@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_probe_helper.h>
 #include "gm12u320_drv.h"
 
 static const struct vm_operations_struct gm12u320_gem_vm_ops = {
@@ -99,6 +100,7 @@ static void gm12u320_usb_disconnect(struct usb_interface *interface)
 	gm12u320_fbdev_unplug(dev);
 	gm12u320_stop_fb_update(dev);
 	drm_dev_unplug(dev);
+	drm_dev_put(dev);
 }
 
 #ifdef CONFIG_PM

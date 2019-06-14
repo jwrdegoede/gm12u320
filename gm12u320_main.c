@@ -13,6 +13,7 @@
  */
 #include <drm/drmP.h>
 #include <linux/dma-buf.h>
+#include <drm/drm_probe_helper.h>
 #include "gm12u320_drv.h"
 
 static bool eco_mode;
