@@ -40,7 +40,6 @@ static struct drm_driver driver = {
 
 	.dumb_create = gm12u320_dumb_create,
 	.dumb_map_offset = gm12u320_gem_mmap,
-	.dumb_destroy = drm_gem_dumb_destroy,
 	.fops = &gm12u320_driver_fops,
 
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
