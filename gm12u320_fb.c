@@ -240,9 +240,11 @@ static void gm12u320_fbdev_destroy(struct drm_device *dev,
 #endif
 	drm_fb_helper_unregister_fbi(&fbdev->helper);
 	drm_fb_helper_fini(&fbdev->helper);
-	drm_framebuffer_unregister_private(&fbdev->fb.base);
-	drm_framebuffer_cleanup(&fbdev->fb.base);
-	drm_gem_object_unreference_unlocked(&fbdev->fb.obj->base);
+	if (fbdev->fb.obj) {
+		drm_framebuffer_unregister_private(&fbdev->fb.base);
+		drm_framebuffer_cleanup(&fbdev->fb.base);
+		drm_gem_object_unreference_unlocked(&fbdev->fb.obj->base);
+	}
 }
 
 int gm12u320_fbdev_init(struct drm_device *dev)
