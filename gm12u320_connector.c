@@ -142,7 +142,7 @@ int gm12u320_connector_init(struct drm_device *dev,
 	drm_connector_helper_add(connector, &gm12u320_helper_funcs);
 
 	drm_connector_register(connector);
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 
 	return 0;
 }
