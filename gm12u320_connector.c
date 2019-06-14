@@ -37,8 +37,8 @@ static struct edid gm12u320_edid = {
 			      { 1, 1 }, { 1, 1 }, { 1, 1 }, { 1, 1 } },
 	.detailed_timings = { {
 		.pixel_clock = 3383,
-		/* hactive = 852, hblank = 256 */
-		.data.pixel_data.hactive_lo = 0x54,
+		/* hactive = 848, hblank = 256 */
+		.data.pixel_data.hactive_lo = 0x50,
 		.data.pixel_data.hblank_lo = 0x00,
 		.data.pixel_data.hactive_hblank_hi = 0x31,
 		/* vactive = 480, vblank = 28 */
@@ -76,7 +76,7 @@ static struct edid gm12u320_edid = {
 			'\n', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
 			' ', ' ',  ' ' },
 	} },
-	.checksum = 0x40,
+	.checksum = 0x44,
 };
 
 static int gm12u320_get_modes(struct drm_connector *connector)

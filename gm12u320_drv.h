@@ -33,9 +33,9 @@
 
 /*
  * The DLP has an actual width of 854 pixels, but that is not a multiple
- * of 4, breaking things left and right, so we export a width of 852.
+ * of 8, breaking things left and right, so we export a width of 848.
  */
-#define GM12U320_USER_WIDTH	852
+#define GM12U320_USER_WIDTH	848
 #define GM12U320_REAL_WIDTH	854
 #define GM12U320_HEIGHT		480
 
