@@ -29,7 +29,6 @@ struct gm12u320_drm_dmabuf_attachment {
 };
 
 static int gm12u320_attach_dma_buf(struct dma_buf *dmabuf,
-				   struct device *dev,
 				   struct dma_buf_attachment *attach)
 {
 	struct gm12u320_drm_dmabuf_attachment *gm12u320_attach;
