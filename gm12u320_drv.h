@@ -17,6 +17,7 @@
 
 #include <linux/usb.h>
 #include <linux/spinlock.h>
+#include <linux/mm_types.h>
 #include <drm/drm_gem.h>
 
 #define DRIVER_NAME		"gm12u320"
@@ -119,7 +120,7 @@ void gm12u320_gem_put_pages(struct gm12u320_gem_object *obj);
 int gm12u320_gem_vmap(struct gm12u320_gem_object *obj);
 void gm12u320_gem_vunmap(struct gm12u320_gem_object *obj);
 int gm12u320_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
-int gm12u320_gem_fault(struct vm_fault *vmf);
+vm_fault_t gm12u320_gem_fault(struct vm_fault *vmf);
 
 void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
 			    int x1, int x2, int y1, int y2);

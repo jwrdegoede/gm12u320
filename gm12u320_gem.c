@@ -96,7 +96,7 @@ int gm12u320_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	return ret;
 }
 
-int gm12u320_gem_fault(struct vm_fault *vmf)
+vm_fault_t gm12u320_gem_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 	struct gm12u320_gem_object *obj = to_gm12u320_bo(vma->vm_private_data);
