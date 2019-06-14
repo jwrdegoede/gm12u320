@@ -158,23 +158,8 @@ static void *gm12u320_dmabuf_kmap(struct dma_buf *dma_buf,
 	return NULL;
 }
 
-static void *gm12u320_dmabuf_kmap_atomic(struct dma_buf *dma_buf,
-					 unsigned long page_num)
-{
-	/* TODO */
-
-	return NULL;
-}
-
 static void gm12u320_dmabuf_kunmap(struct dma_buf *dma_buf,
 				   unsigned long page_num, void *addr)
-{
-	/* TODO */
-}
-
-static void gm12u320_dmabuf_kunmap_atomic(struct dma_buf *dma_buf,
-					  unsigned long page_num,
-					  void *addr)
 {
 	/* TODO */
 }
@@ -193,9 +178,7 @@ static const struct dma_buf_ops gm12u320_dmabuf_ops = {
 	.map_dma_buf		= gm12u320_map_dma_buf,
 	.unmap_dma_buf		= gm12u320_unmap_dma_buf,
 	.map			= gm12u320_dmabuf_kmap,
-	.map_atomic		= gm12u320_dmabuf_kmap_atomic,
 	.unmap			= gm12u320_dmabuf_kunmap,
-	.unmap_atomic		= gm12u320_dmabuf_kunmap_atomic,
 	.mmap			= gm12u320_dmabuf_mmap,
 	.release		= drm_gem_dmabuf_release,
 };
