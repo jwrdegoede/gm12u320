@@ -187,7 +187,7 @@ static int gm12u320_dmabuf_mmap(struct dma_buf *dma_buf,
 	return -EINVAL;
 }
 
-static struct dma_buf_ops gm12u320_dmabuf_ops = {
+static const struct dma_buf_ops gm12u320_dmabuf_ops = {
 	.attach			= gm12u320_attach_dma_buf,
 	.detach			= gm12u320_detach_dma_buf,
 	.map_dma_buf		= gm12u320_map_dma_buf,
