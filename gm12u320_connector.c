@@ -80,7 +80,7 @@ static struct edid gm12u320_edid = {
 
 static int gm12u320_get_modes(struct drm_connector *connector)
 {
-	drm_mode_connector_update_edid_property(connector, &gm12u320_edid);
+	drm_connector_update_edid_property(connector, &gm12u320_edid);
 	return drm_add_edid_modes(connector, &gm12u320_edid);
 }
 
