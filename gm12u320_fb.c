@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/fb.h>
+#include <linux/version.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
@@ -205,7 +206,15 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 	info->fix.smem_start = (unsigned long)fbdev->fb.obj->vmapping;
 
 	info->fbops = &gm12u320_fb_ops;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
 	drm_fb_helper_fill_info(info, &fbdev->helper, sizes);
+#else
+	info->par = fbdev;
+	strcpy(info->fix.id, "gm12u320drmfb");
+	drm_fb_helper_fill_fix(info, drm_fb->pitches[0], drm_fb->format->depth);
+	drm_fb_helper_fill_var(info, &fbdev->helper,
+			       sizes->fb_width, sizes->fb_height);	
+#endif
 #ifdef CONFIG_DRM_FBDEV_EMULATION
 	info->fbdefio = &gm12u320_fb_defio;
 	fb_deferred_io_init(info);
