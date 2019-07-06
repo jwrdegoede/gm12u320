@@ -222,6 +222,7 @@ static void gm12u320_copy_fb_to_blocks(struct gm12u320_framebuffer *fb,
 	struct drm_device *dev = fb->base.dev;
 	struct gm12u320_device *gm12u320 = dev->dev_private;
 	int block, dst_offset, len, remain, ret;
+	void *obj_vmap;
 	u8 *src;
 
 	if (fb->obj->base.import_attach) {
@@ -233,15 +234,16 @@ static void gm12u320_copy_fb_to_blocks(struct gm12u320_framebuffer *fb,
 		}
 	}
 
-	if (!fb->obj->vmapping) {
-		ret = gm12u320_gem_vmap(fb->obj);
-		if (ret) {
+	if (!fb->obj->vaddr) {
+	        obj_vmap = drm_gem_shmem_vmap(&fb->obj->base);
+	        if (IS_ERR(obj_vmap)) {
+			ret = PTR_ERR(obj_vmap);
 			DRM_ERROR("failed to vmap fb: %d\n", ret);
 			goto end_cpu_access;
 		}
 	}
 
-	src = fb->obj->vmapping + y1 * fb->base.pitches[0] + x1 * 4;
+	src = fb->obj->vaddr + y1 * fb->base.pitches[0] + x1 * 4;
 
 	x1 += (GM12U320_REAL_WIDTH - GM12U320_USER_WIDTH) / 2;
 	x2 += (GM12U320_REAL_WIDTH - GM12U320_USER_WIDTH) / 2;
@@ -436,7 +438,6 @@ int gm12u320_driver_load(struct drm_device *dev, unsigned long flags)
 	gm12u320->ddev = dev;
 	dev->dev_private = gm12u320;
 
-	mutex_init(&gm12u320->gem_lock);
 	INIT_WORK(&gm12u320->fb_update.work, gm12u320_fb_update_work);
 	mutex_init(&gm12u320->fb_update.lock);
 	init_waitqueue_head(&gm12u320->fb_update.waitq);

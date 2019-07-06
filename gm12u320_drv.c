@@ -12,23 +12,7 @@
 #include <drm/drm_probe_helper.h>
 #include "gm12u320_drv.h"
 
-static const struct vm_operations_struct gm12u320_gem_vm_ops = {
-	.fault = gm12u320_gem_fault,
-	.open = drm_gem_vm_open,
-	.close = drm_gem_vm_close,
-};
-
-static const struct file_operations gm12u320_driver_fops = {
-	.owner = THIS_MODULE,
-	.open = drm_open,
-	.mmap = gm12u320_drm_gem_mmap,
-	.poll = drm_poll,
-	.read = drm_read,
-	.unlocked_ioctl	= drm_ioctl,
-	.release = drm_release,
-	.compat_ioctl = drm_compat_ioctl,
-	.llseek = noop_llseek,
-};
+DEFINE_DRM_GEM_SHMEM_FOPS(gm12u320_driver_fops);
 
 static struct drm_driver driver = {
 	.driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_PRIME,
@@ -36,25 +20,15 @@ static struct drm_driver driver = {
 	.unload = gm12u320_driver_unload,
 	.release = gm12u320_driver_release,
 
-	/* gem hooks */
-	.gem_free_object_unlocked = gm12u320_gem_free_object,
-	.gem_vm_ops = &gm12u320_gem_vm_ops,
-
-	.dumb_create = gm12u320_dumb_create,
-	.dumb_map_offset = gm12u320_gem_mmap,
-	.fops = &gm12u320_driver_fops,
-
-	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
-	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
-	.gem_prime_export = gm12u320_gem_prime_export,
-	.gem_prime_import = gm12u320_gem_prime_import,
-
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
 	.date = DRIVER_DATE,
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
-	.patchlevel = DRIVER_PATCHLEVEL,
+
+	/* gem hooks */
+	.fops = &gm12u320_driver_fops,
+	DRM_GEM_SHMEM_DRIVER_OPS,
 };
 
 static int gm12u320_usb_probe(struct usb_interface *interface,

@@ -19,6 +19,7 @@
 #include <linux/spinlock.h>
 #include <linux/mm_types.h>
 #include <drm/drm_gem.h>
+#include <drm/drm_gem_shmem_helper.h>
 
 #define DRIVER_NAME		"gm12u320"
 #define DRIVER_DESC		"Grain Media GM12U320 USB projector display"
@@ -67,19 +68,9 @@ struct gm12u320_device {
 	} fb_update;
 };
 
-struct gm12u320_gem_object {
-	struct drm_gem_object base;
-	struct page **pages;
-	void *vmapping;
-	struct sg_table *sg;
-	unsigned int flags;
-};
-
-#define to_gm12u320_bo(x) container_of(x, struct gm12u320_gem_object, base)
-
 struct gm12u320_framebuffer {
 	struct drm_framebuffer base;
-	struct gm12u320_gem_object *obj;
+	struct drm_gem_shmem_object *obj;
 };
 
 #define to_gm12u320_fb(x) container_of(x, struct gm12u320_framebuffer, base)
@@ -102,27 +93,6 @@ void gm12u320_fbdev_unplug(struct drm_device *dev);
 struct drm_framebuffer *
 gm12u320_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
 			   const struct drm_mode_fb_cmd2 *mode_cmd);
-
-int gm12u320_dumb_create(struct drm_file *file_priv, struct drm_device *dev,
-			 struct drm_mode_create_dumb *args);
-int gm12u320_gem_mmap(struct drm_file *file_priv, struct drm_device *dev,
-		      uint32_t handle, uint64_t *offset);
-
-struct gm12u320_gem_object *
-gm12u320_gem_alloc_object(struct drm_device *dev, size_t size);
-void gm12u320_gem_free_object(struct drm_gem_object *gem_obj);
-struct dma_buf *gm12u320_gem_prime_export(struct drm_device *dev,
-				      struct drm_gem_object *obj, int flags);
-struct drm_gem_object *gm12u320_gem_prime_import(struct drm_device *dev,
-						 struct dma_buf *dma_buf);
-
-int gm12u320_gem_get_pages(struct gm12u320_gem_object *obj);
-void gm12u320_gem_put_pages(struct gm12u320_gem_object *obj);
-int gm12u320_gem_vmap(struct gm12u320_gem_object *obj);
-void gm12u320_gem_vunmap(struct gm12u320_gem_object *obj);
-int gm12u320_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
-vm_fault_t gm12u320_gem_fault(struct vm_fault *vmf);
-
 void gm12u320_fb_mark_dirty(struct gm12u320_framebuffer *fb,
 			    int x1, int x2, int y1, int y2);
 void gm12u320_start_fb_update(struct drm_device *dev);

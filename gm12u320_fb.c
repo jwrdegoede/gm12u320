@@ -125,8 +125,12 @@ static void gm12u320_user_framebuffer_destroy(struct drm_framebuffer *drm_fb)
 {
 	struct gm12u320_framebuffer *fb = to_gm12u320_fb(drm_fb);
 
-	if (fb->obj)
+	if (fb->obj) {
+		if (fb->obj->vaddr)
+			drm_gem_shmem_vunmap(&fb->obj->base, fb->obj->vaddr);
 		drm_gem_object_put_unlocked(&fb->obj->base);
+		fb->obj = NULL;
+	}
 
 	drm_framebuffer_cleanup(drm_fb);
 	kfree(fb);
@@ -141,7 +145,7 @@ static int
 gm12u320_framebuffer_init(struct drm_device *dev,
 			  struct gm12u320_framebuffer *fb,
 			  const struct drm_mode_fb_cmd2 *mode_cmd,
-			  struct gm12u320_gem_object *obj)
+			  struct drm_gem_shmem_object *obj)
 {
 	int ret;
 
@@ -160,7 +164,8 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 	struct fb_info *info;
 	struct drm_framebuffer *drm_fb;
 	struct drm_mode_fb_cmd2 mode_cmd;
-	struct gm12u320_gem_object *obj;
+	struct drm_gem_shmem_object *obj;
+	void *obj_vmap;
 	uint32_t size;
 	int ret = 0;
 
@@ -177,13 +182,16 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 	size = mode_cmd.pitches[0] * mode_cmd.height;
 	size = ALIGN(size, PAGE_SIZE);
 
-	obj = gm12u320_gem_alloc_object(dev, size);
-	if (!obj)
+	obj = drm_gem_shmem_create(dev, size);
+	if (IS_ERR(obj)) {
+		ret = PTR_ERR(obj);
 		goto out;
+	}
 
-	ret = gm12u320_gem_vmap(obj);
-	if (ret) {
+	obj_vmap = drm_gem_shmem_vmap(&obj->base);
+	if (IS_ERR(obj_vmap)) {
 		DRM_ERROR("failed to vmap fb\n");
+		ret = PTR_ERR(obj_vmap);
 		goto out_gfree;
 	}
 
@@ -201,9 +209,9 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 
 	fbdev->helper.fb = drm_fb;
 
-	info->screen_base = fbdev->fb.obj->vmapping;
+	info->screen_base = fbdev->fb.obj->vaddr;
 	info->fix.smem_len = size;
-	info->fix.smem_start = (unsigned long)fbdev->fb.obj->vmapping;
+	info->fix.smem_start = (unsigned long)fbdev->fb.obj->vaddr;
 
 	info->fbops = &gm12u320_fb_ops;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
@@ -222,7 +230,7 @@ static int gm12u320fb_create(struct drm_fb_helper *helper,
 
 	DRM_DEBUG_KMS("allocated %dx%d vmal %p\n",
 		      drm_fb->width, drm_fb->height,
-		      fbdev->fb.obj->vmapping);
+		      fbdev->fb.obj->vaddr);
 
 	return ret;
 
@@ -245,6 +253,8 @@ static void gm12u320_fbdev_destroy(struct drm_device *dev,
 	drm_fb_helper_unregister_fbi(&fbdev->helper);
 	drm_fb_helper_fini(&fbdev->helper);
 	if (fbdev->fb.obj) {
+		if (fbdev->fb.obj->vaddr)
+			drm_gem_shmem_vunmap(&fbdev->fb.obj->base, fbdev->fb.obj->vaddr);
 		drm_framebuffer_unregister_private(&fbdev->fb.base);
 		drm_framebuffer_cleanup(&fbdev->fb.base);
 		drm_gem_object_put_unlocked(&fbdev->fb.obj->base);
@@ -339,10 +349,11 @@ gm12u320_fb_user_fb_create(struct drm_device *dev,
 	if (fb == NULL)
 		return ERR_PTR(-ENOMEM);
 
-	ret = gm12u320_framebuffer_init(dev, fb, mode_cmd, to_gm12u320_bo(obj));
+	ret = gm12u320_framebuffer_init(dev, fb, mode_cmd, to_drm_gem_shmem_obj(obj));
 	if (ret) {
 		kfree(fb);
 		return ERR_PTR(-EINVAL);
 	}
+
 	return &fb->base;
 }
